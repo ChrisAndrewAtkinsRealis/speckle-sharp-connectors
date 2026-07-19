@@ -33,6 +33,7 @@ public static class ServiceRegistration
     services.AddDUIView();
 
     // host app services
+    services.AddSingleton<MicroStationReferenceService>();
     services.AddSingleton<MicroStationContext>();
     services.AddSingleton<IAppIdleManager, MicroStationIdleManager>();
     services.AddSingleton<IOperationProgressManager, OperationProgressManager>();

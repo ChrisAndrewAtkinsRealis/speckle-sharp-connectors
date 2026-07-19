@@ -5,8 +5,10 @@ using Speckle.Connectors.DUI.Bindings;
 using Speckle.Connectors.DUI.Bridge;
 using Speckle.Connectors.DUI.Models.Card.SendFilter;
 using Speckle.Connectors.DUI.Settings;
+using Speckle.Connectors.DUI.Models.Card;
 using Speckle.Connectors.MicroStation.HostApp;
 using Speckle.Connectors.MicroStation.Operations.Send;
+using Speckle.Connectors.MicroStation.Operations.Send.Settings;
 using Speckle.Converters.Common;
 using Speckle.Converters.MicroStation;
 using Speckle.Sdk.Common;
@@ -48,7 +50,7 @@ public sealed class MicroStationSendBinding : ISendBinding
 
   public List<ISendFilter> GetSendFilters() => _sendFilters;
 
-  public List<ICardSetting> GetSendSettings() => [];
+  public List<ICardSetting> GetSendSettings() => [new IncludeReferencesSetting()];
 
   public async Task Send(string modelCardId) =>
     await _threadContext.RunOnMainAsync(async () => await SendInternal(modelCardId));
@@ -71,13 +73,20 @@ public sealed class MicroStationSendBinding : ISendBinding
     );
   }
 
-  private IReadOnlyList<MicroStationRootObject> GatherObjects(
-    Speckle.Connectors.DUI.Models.Card.SenderModelCard card
-  )
+  private IReadOnlyList<MicroStationRootObject> GatherObjects(SenderModelCard card)
   {
+    bool includeReferences =
+      card.Settings?.FirstOrDefault(s => s.Id == IncludeReferencesSetting.SETTING_ID)?.Value as bool? ?? false;
+
     var objects = new List<MicroStationRootObject>();
     foreach (string id in card.SendFilter.NotNull().RefreshObjectIds())
     {
+      // skip reference elements unless the user opted in
+      if (!includeReferences && MicroStationReferenceService.IsReferenceId(id))
+      {
+        continue;
+      }
+
       var element = _context.FindElement(id);
       if (element is not null)
       {

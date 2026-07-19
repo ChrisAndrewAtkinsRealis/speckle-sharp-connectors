@@ -1,5 +1,6 @@
 using Speckle.Connectors.DUI.Bindings;
 using Speckle.Connectors.DUI.Bridge;
+using Speckle.Connectors.MicroStation.HostApp;
 
 namespace Speckle.Connectors.MicroStation.Bindings;
 
@@ -35,7 +36,14 @@ public class MicroStationSelectionBinding : ISelectionBinding
         continue;
       }
 
-      objectIds.Add(element.ElementId.ToString());
+      // reference elements carry their own model ref (a DgnAttachment); encode them so they can be told
+      // apart from active-model elements and resolved back through the attachment on send.
+      string id =
+        modelRef is BDPN.DgnAttachment attachment
+          ? MicroStationReferenceService.EncodeReferenceId(attachment, element)
+          : element.ElementId.ToString();
+
+      objectIds.Add(id);
       typeNames.Add(element.GetType().Name);
     }
 

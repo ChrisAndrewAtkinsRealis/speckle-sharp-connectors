@@ -93,6 +93,25 @@ stored as a column-dominant `Matrix4x4` (translation in master units). Nested ce
 > adjustment against a live MicroStation SDK build; they are deliberately isolated so any fix stays local.
 > Purging previously-baked cell definitions on re-receive is a follow-up.
 
+### References (attached models) — opt-in
+
+Unlike AutoCAD Xrefs (a single block reference), MicroStation reference elements are individually selectable
+and snappable as if they were in the active model — they are just read-only until the reference is activated.
+The connector uses this:
+
+- A per-model-card **"Include Reference Data"** send setting (`IncludeReferencesSetting`, off by default).
+- Each selected reference element carries its own `DgnModelRef` (a `DgnAttachment`), so it is captured with a
+  composite application id `R{attachmentElementId}:{elementId}` that distinguishes it from active-model
+  elements (plain numeric ids) — see `MicroStationReferenceService`.
+- On send, reference ids are dropped unless the setting is on; when on, they are resolved back through the
+  attachment (`attachment.GetDgnModel().FindElementById(...)`) and converted like any other element.
+- Highlighting selects reference elements against their own attachment model ref.
+
+> MVP scope: top-level attachments only (nested references are a follow-up), and reference geometry is
+> converted in the active model's units — references authored with different master units or a scaled/rotated
+> attachment transform need per-reference settings / transform application (a follow-up). Attachment
+> enumeration/resolution is a Bentley-API-dependent surface, isolated in `MicroStationReferenceService`.
+
 ## Notes for the planned connectors
 
 - **OpenRoads / OpenRail** — model these on the **Civil 3D** connector. They add the `Bentley.CifNET.*`

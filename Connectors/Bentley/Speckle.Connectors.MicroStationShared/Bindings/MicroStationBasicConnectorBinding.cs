@@ -112,15 +112,16 @@ public class MicroStationBasicConnectorBinding : IBasicConnectorBinding
     {
       try
       {
-        var modelRef = BMPN.Session.Instance.GetActiveDgnModelRef();
+        var activeModelRef = BMPN.Session.Instance.GetActiveDgnModelRef();
         BMPN.SelectionSetManager.EmptyAll();
 
         foreach (string objectId in objectIds)
         {
-          var element = _context.FindElement(objectId);
+          // reference elements must be added against their own model ref (the attachment), not the active one
+          var (element, modelRef) = _context.FindElementWithModelRef(objectId);
           if (element is not null)
           {
-            BMPN.SelectionSetManager.AddElement(element, modelRef);
+            BMPN.SelectionSetManager.AddElement(element, modelRef ?? activeModelRef);
           }
         }
       }
