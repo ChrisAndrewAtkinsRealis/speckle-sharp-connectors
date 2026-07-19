@@ -16,6 +16,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)Bindings\MicroStationSelectionBinding.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Bindings\MicroStationSendBinding.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Filters\MicroStationSelectionFilter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)HostApp\CivilModelService.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)HostApp\MicroStationContext.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)HostApp\MicroStationDocumentModelStore.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)HostApp\MicroStationIdleManager.cs" />
@@ -25,6 +26,8 @@
     <Compile Include="$(MSBuildThisFileDirectory)HostApp\MicroStationLevelBaker.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)HostApp\MicroStationTransformHelper.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Operations\Receive\MicroStationHostObjectBuilder.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Operations\Send\CivilModelContributor.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Operations\Send\ICivilModelContributor.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Operations\Send\MicroStationRootObject.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Operations\Send\MicroStationRootObjectBuilder.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Operations\Send\Settings\IncludeReferencesSetting.cs" />

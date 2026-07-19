@@ -5,8 +5,12 @@ using Microsoft.Extensions.DependencyInjection;
 using Speckle.Connectors.Common;
 using Speckle.Connectors.DUI;
 using Speckle.Connectors.DUI.WebView;
-using Speckle.Converters.MicroStation;
 using Speckle.Sdk;
+#if OPENROADS || OPENRAIL
+using Speckle.Converters.OpenRoads;
+#else
+using Speckle.Converters.MicroStation;
+#endif
 
 namespace Speckle.Connectors.MicroStation.Plugin;
 
@@ -49,14 +53,29 @@ public sealed class SpeckleMicroStationPanel : Form
   private static ServiceProvider BuildContainer()
   {
     var services = new ServiceCollection();
-    services.Initialize(HostApplications.MicroStation, GetVersion());
+    services.Initialize(GetHostApplication(), GetVersion());
     services.AddMicroStation();
+
+#if OPENROADS || OPENRAIL
+    // registers the MicroStation geometry converters AND the civil converters (same compiled assembly)
+    services.AddOpenRoadsConverters();
+#else
     services.AddMicroStationConverters();
+#endif
 
     var container = services.BuildServiceProvider();
     container.UseDUI();
     return container;
   }
+
+  private static Application GetHostApplication() =>
+#if OPENROADS
+    HostApplications.OpenRoads;
+#elif OPENRAIL
+    HostApplications.OpenRail;
+#else
+    HostApplications.MicroStation;
+#endif
 
   /// <summary>
   /// Opens the Speckle panel, or brings the existing one to the front.
@@ -82,9 +101,9 @@ public sealed class SpeckleMicroStationPanel : Form
   }
 
   private static HostAppVersion GetVersion() =>
-#if MICROSTATION2026
+#if MICROSTATION2026 || OPENROADS2026 || OPENRAIL2026
     HostAppVersion.v2026;
 #else
-    throw new NotSupportedException("Unsupported MicroStation version.");
+    throw new NotSupportedException("Unsupported Bentley host version.");
 #endif
 }
