@@ -65,12 +65,14 @@ public static class ServiceRegistration
     services.AddScoped<IRootObjectBuilder<MicroStationRootObject>, MicroStationRootObjectBuilder>();
     services.AddScoped<SendOperation<MicroStationRootObject>>();
 
-    // civil contribution: no-op for MicroStation, real for OpenRoads/OpenRail
+    // civil send contribution + receive rebuild: no-op for MicroStation, real for OpenRoads/OpenRail
 #if OPENROADS || OPENRAIL
     services.AddScoped<CivilModelService>();
     services.AddScoped<ICivilModelContributor, CivilModelContributor>();
+    services.AddScoped<ICivilHostRebuilder, CivilHostRebuilder>();
 #else
     services.AddScoped<ICivilModelContributor, NullCivilModelContributor>();
+    services.AddScoped<ICivilHostRebuilder, NullCivilHostRebuilder>();
 #endif
 
     // receive

@@ -12,6 +12,11 @@
     <Compile Include="$(MSBuildThisFileDirectory)GlobalUsings.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ServiceRegistration.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Extensions\CivilDisplayExtensions.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToHost\CivilLinearElementBuilder.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToHost\AlignmentToHostConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToHost\ProfileToHostConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToHost\CorridorToHostConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToSpeckle\CivilHorizontalGeometryExtractor.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToSpeckle\AlignmentToSpeckleConverter.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToSpeckle\ProfileToSpeckleConverter.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToSpeckle\CorridorToSpeckleConverter.cs" />

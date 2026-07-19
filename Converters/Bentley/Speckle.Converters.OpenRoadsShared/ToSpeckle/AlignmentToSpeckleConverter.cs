@@ -1,4 +1,5 @@
 using Speckle.Converters.Common;
+using Speckle.Converters.Common.Civil;
 using Speckle.Converters.Common.Objects;
 using Speckle.Converters.MicroStation;
 using Speckle.Converters.OpenRoads.Extensions;
@@ -17,6 +18,7 @@ namespace Speckle.Converters.OpenRoads.ToSpeckle;
 [NameAndRankValue(typeof(CifGM.Alignment), NameAndRankValueAttribute.SPECKLE_DEFAULT_RANK)]
 public class AlignmentToSpeckleConverter(
   ITypedConverter<BG.CurveVector, List<ICurve>> curveVectorConverter,
+  CivilHorizontalGeometryExtractor horizontalGeometryExtractor,
   IConverterSettingsStore<MicroStationConversionSettings> settingsStore
 ) : IToSpeckleTopLevelConverter
 {
@@ -24,8 +26,16 @@ public class AlignmentToSpeckleConverter(
 
   public DataObject Convert(CifGM.Alignment target)
   {
+    // display curves are always attached (visualization + rebuild fallback); the structured horizontal
+    // geometry is what allows a faithful rebuild.
     var displayValue = CivilDisplayExtensions.GetDisplayValue(target.Element, curveVectorConverter);
     var properties = new Dictionary<string, object?>();
+
+    var horizontalGeometry = horizontalGeometryExtractor.Extract(target);
+    if (horizontalGeometry.Count > 0)
+    {
+      properties[AlignmentGeometrySchema.HORIZONTAL_GEOMETRY] = horizontalGeometry;
+    }
 
     TrySet(properties, "featureName", () => target.FeatureName);
     TrySet(properties, "featureDefinition", () => target.FeatureDefinition?.Name);

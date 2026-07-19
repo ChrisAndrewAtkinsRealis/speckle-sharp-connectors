@@ -31,6 +31,7 @@ public class MicroStationHostObjectBuilder : IHostObjectBuilder
   private readonly MicroStationInstanceBaker _instanceBaker;
   private readonly MicroStationLevelBaker _levelBaker;
   private readonly MicroStationColorBaker _colorBaker;
+  private readonly ICivilHostRebuilder _civilRebuilder;
 
   public MicroStationHostObjectBuilder(
     IRootToHostConverter converter,
@@ -38,7 +39,8 @@ public class MicroStationHostObjectBuilder : IHostObjectBuilder
     IReceiveConversionHandler conversionHandler,
     MicroStationInstanceBaker instanceBaker,
     MicroStationLevelBaker levelBaker,
-    MicroStationColorBaker colorBaker
+    MicroStationColorBaker colorBaker,
+    ICivilHostRebuilder civilRebuilder
   )
   {
     _converter = converter;
@@ -47,6 +49,7 @@ public class MicroStationHostObjectBuilder : IHostObjectBuilder
     _instanceBaker = instanceBaker;
     _levelBaker = levelBaker;
     _colorBaker = colorBaker;
+    _civilRebuilder = civilRebuilder;
   }
 
   public Task<HostObjectBuilderResult> Build(
@@ -82,8 +85,28 @@ public class MicroStationHostObjectBuilder : IHostObjectBuilder
     foreach (var traversalContext in atomicObjects)
     {
       Base atomicObject = traversalContext.Current;
-      string levelName = GetLevelName(traversalContext);
       onOperationProgressed.Report(new("Converting objects", (double)++count / atomicObjects.Count));
+
+      // civil entities (Alignment/Corridor) are regenerated natively via the CifNET edit API, not baked as geometry
+      if (_civilRebuilder.CanRebuild(atomicObject))
+      {
+        var civilEx = _conversionHandler.TryConvert(() =>
+        {
+          cancellationToken.ThrowIfCancellationRequested();
+          foreach (string bakedId in _civilRebuilder.Rebuild(atomicObject))
+          {
+            bakedObjectIds.Add(bakedId);
+            results.Add(new(Status.SUCCESS, atomicObject, bakedId, "Civil"));
+          }
+        });
+        if (civilEx is not null)
+        {
+          results.Add(new(Status.ERROR, atomicObject, null, null, civilEx));
+        }
+        continue;
+      }
+
+      string levelName = GetLevelName(traversalContext);
 
       var ex = _conversionHandler.TryConvert(() =>
       {
