@@ -107,6 +107,20 @@ The connector uses this:
   attachment (`attachment.GetDgnModel().FindElementById(...)`) and converted like any other element.
 - Highlighting selects reference elements against their own attachment model ref.
 
+**Source structure is preserved.** The sent collection mirrors the DGN hierarchy: active-model elements are
+grouped by level directly under the root, and each reference's elements are grouped by level under a
+per-reference collection named after the source file (e.g. `x.dgn`, tagged `isReference`). Reference element
+levels are read from the reference model's own level cache, not the active model's.
+
+```
+root (active file)
+├── <level>            ← active-model elements
+├── x.dgn              ← reference collection (isReference)
+│   └── <level>        ← reference elements, by their own levels
+└── y.dgn
+    └── <level>
+```
+
 > MVP scope: top-level attachments only (nested references are a follow-up), and reference geometry is
 > converted in the active model's units — references authored with different master units or a scaled/rotated
 > attachment transform need per-reference settings / transform application (a follow-up). Attachment

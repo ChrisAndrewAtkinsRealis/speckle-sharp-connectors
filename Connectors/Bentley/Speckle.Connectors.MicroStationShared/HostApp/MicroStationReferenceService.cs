@@ -31,6 +31,12 @@ public class MicroStationReferenceService
 
   public static bool IsReferenceId(string applicationId) => applicationId.StartsWith(REFERENCE_PREFIX, StringComparison.Ordinal);
 
+  /// <summary>The referenced file name, model and attachment for a reference element (for grouping on send).</summary>
+  public sealed record ReferenceInfo(string Name, BDPN.DgnModel Model, BDPN.DgnAttachment Attachment);
+
+  public static bool TryGetAttachmentId(string applicationId, out ulong attachmentId) =>
+    TryDecode(applicationId, out attachmentId, out _);
+
   /// <summary>
   /// Builds the composite id for an element selected inside a reference attachment.
   /// </summary>
@@ -74,6 +80,45 @@ public class MicroStationReferenceService
     {
       _logger.LogWarning(ex, "Failed to resolve reference element {ApplicationId}", applicationId);
       return (null, null);
+    }
+  }
+
+  /// <summary>
+  /// Resolves the reference (file name + model) an attachment id points to, for grouping reference elements
+  /// under a per-source collection on send.
+  /// </summary>
+  public ReferenceInfo? GetReferenceInfo(BDPN.DgnModel activeModel, ulong attachmentId)
+  {
+    try
+    {
+      var attachment = FindAttachment(activeModel, attachmentId);
+      var model = attachment?.GetDgnModel();
+      if (attachment is null || model is null)
+      {
+        return null;
+      }
+
+      string name = GetAttachmentName(attachment) ?? $"Reference {attachmentId}";
+      return new ReferenceInfo(name, model, attachment);
+    }
+    catch (Exception ex) when (!ex.IsFatal())
+    {
+      _logger.LogWarning(ex, "Failed to resolve reference info for attachment {AttachmentId}", attachmentId);
+      return null;
+    }
+  }
+
+  private static string? GetAttachmentName(BDPN.DgnAttachment attachment)
+  {
+    try
+    {
+      // reuse DgnFile.GetFileName (already relied on elsewhere) and keep just the file name, e.g. "x.dgn"
+      string? path = attachment.GetDgnModel()?.GetDgnFile()?.GetFileName();
+      return string.IsNullOrEmpty(path) ? null : System.IO.Path.GetFileName(path);
+    }
+    catch (Exception)
+    {
+      return null;
     }
   }
 

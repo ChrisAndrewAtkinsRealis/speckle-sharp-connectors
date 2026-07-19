@@ -20,8 +20,12 @@ public class MicroStationRootObjectBuilder : IRootObjectBuilder<MicroStationRoot
   private readonly IConverterSettingsStore<MicroStationConversionSettings> _converterSettings;
   private readonly ISendConversionCache _sendConversionCache;
   private readonly MicroStationInstanceUnpacker _instanceUnpacker;
+  private readonly MicroStationReferenceService _referenceService;
   private readonly MicroStationContext _context;
   private readonly ILogger<MicroStationRootObjectBuilder> _logger;
+
+  // reference (attachment id) -> its collection; and "{parentKey}:{levelName}" -> level collection under that parent
+  private readonly Dictionary<string, Collection> _referenceCollections = new();
   private readonly Dictionary<string, Collection> _levelCollections = new();
 
   public MicroStationRootObjectBuilder(
@@ -29,6 +33,7 @@ public class MicroStationRootObjectBuilder : IRootObjectBuilder<MicroStationRoot
     IConverterSettingsStore<MicroStationConversionSettings> converterSettings,
     ISendConversionCache sendConversionCache,
     MicroStationInstanceUnpacker instanceUnpacker,
+    MicroStationReferenceService referenceService,
     MicroStationContext context,
     ILogger<MicroStationRootObjectBuilder> logger
   )
@@ -37,6 +42,7 @@ public class MicroStationRootObjectBuilder : IRootObjectBuilder<MicroStationRoot
     _converterSettings = converterSettings;
     _sendConversionCache = sendConversionCache;
     _instanceUnpacker = instanceUnpacker;
+    _referenceService = referenceService;
     _context = context;
     _logger = logger;
   }
@@ -64,8 +70,8 @@ public class MicroStationRootObjectBuilder : IRootObjectBuilder<MicroStationRoot
     {
       cancellationToken.ThrowIfCancellationRequested();
 
-      var levelCollection = GetOrCreateLevelCollection(element, root);
-      results.Add(ConvertOrProxy(element, applicationId, levelCollection, unpacked.InstanceProxies, projectId));
+      var targetCollection = GetTargetCollection(element, applicationId, root);
+      results.Add(ConvertOrProxy(element, applicationId, targetCollection, unpacked.InstanceProxies, projectId));
 
       onOperationProgressed.Report(new("Converting", (double)++count / unpacked.AtomicObjects.Count));
     }
@@ -115,25 +121,63 @@ public class MicroStationRootObjectBuilder : IRootObjectBuilder<MicroStationRoot
     }
   }
 
-  private Collection GetOrCreateLevelCollection(BDE.Element element, Collection root)
+  /// <summary>
+  /// Returns the collection an element belongs in, preserving the source structure: active-model elements are
+  /// grouped by level directly under the root; reference elements are grouped by level under a per-reference
+  /// collection named after the source file (e.g. "x.dgn").
+  /// </summary>
+  private Collection GetTargetCollection(BDE.Element element, string applicationId, Collection root)
   {
-    string levelName = GetLevelName(element);
-    if (_levelCollections.TryGetValue(levelName, out Collection? collection))
+    Collection parent = root;
+    string parentKey = "root";
+    BDPN.DgnModel levelModel = _converterSettings.Current.Model;
+
+    if (MicroStationReferenceService.TryGetAttachmentId(applicationId, out ulong attachmentId))
+    {
+      var info = _referenceService.GetReferenceInfo(_converterSettings.Current.Model, attachmentId);
+      parent = GetOrCreateReferenceCollection(attachmentId, info, root);
+      parentKey = "R" + attachmentId;
+      // reference element levels live in the reference model, not the active one
+      levelModel = info?.Model ?? levelModel;
+    }
+
+    string levelName = GetLevelName(element, levelModel);
+    string levelKey = $"{parentKey}:{levelName}";
+    if (_levelCollections.TryGetValue(levelKey, out Collection? levelCollection))
+    {
+      return levelCollection;
+    }
+
+    levelCollection = new Collection { name = levelName };
+    _levelCollections[levelKey] = levelCollection;
+    parent.elements.Add(levelCollection);
+    return levelCollection;
+  }
+
+  private Collection GetOrCreateReferenceCollection(
+    ulong attachmentId,
+    MicroStationReferenceService.ReferenceInfo? info,
+    Collection root
+  )
+  {
+    string key = attachmentId.ToString();
+    if (_referenceCollections.TryGetValue(key, out Collection? collection))
     {
       return collection;
     }
 
-    collection = new Collection { name = levelName };
-    _levelCollections[levelName] = collection;
+    collection = new Collection { name = info?.Name ?? $"Reference {attachmentId}" };
+    collection["isReference"] = true;
+    _referenceCollections[key] = collection;
     root.elements.Add(collection);
     return collection;
   }
 
-  private string GetLevelName(BDE.Element element)
+  private string GetLevelName(BDE.Element element, BDPN.DgnModel model)
   {
     try
     {
-      var levelCache = _converterSettings.Current.Model.GetFileLevelCache();
+      var levelCache = model.GetFileLevelCache();
       var level = levelCache.GetLevel(element.LevelId);
       string? name = level?.Name;
       return string.IsNullOrEmpty(name) ? "Default" : name!;
