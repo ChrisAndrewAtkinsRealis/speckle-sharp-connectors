@@ -17,6 +17,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)ServiceRegistration.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Extensions\ElementCurveExtensions.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Extensions\ElementExtensions.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Extensions\GeometryExtensions.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToHost\Helpers\MicroStationUnitScaler.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToHost\Raw\ICurveToHostRawConverter.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToHost\Geometry\ArcToHostConverter.cs" />

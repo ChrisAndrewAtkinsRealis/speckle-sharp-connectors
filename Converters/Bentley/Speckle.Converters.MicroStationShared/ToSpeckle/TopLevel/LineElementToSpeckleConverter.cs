@@ -22,7 +22,7 @@ public class LineElementToSpeckleConverter(
     vec.GetStartEnd(out BG.DPoint3d startPoint, out BG.DPoint3d endPoint);
 
     // degenerate (zero-length) lines are used as points in MicroStation
-    if (startPoint.IsEqual(endPoint, 1e-9))
+    if (startPoint.IsAlmostEqualTo(endPoint, 1e-9))
     {
       return pointConverter.Convert(startPoint);
     }

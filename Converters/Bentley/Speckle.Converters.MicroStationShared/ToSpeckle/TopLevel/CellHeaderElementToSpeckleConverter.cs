@@ -41,7 +41,7 @@ public class CellHeaderElementToSpeckleConverter(IConverterManager<IToSpeckleTop
 
     return new DataObject
     {
-      name = target.CellName ?? nameof(BDE.CellHeaderElement),
+      name = nameof(BDE.CellHeaderElement),
       displayValue = displayValue,
       properties = new Dictionary<string, object?>(),
     };

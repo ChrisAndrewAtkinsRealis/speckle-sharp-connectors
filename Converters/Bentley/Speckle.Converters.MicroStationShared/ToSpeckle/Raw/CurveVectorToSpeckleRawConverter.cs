@@ -63,14 +63,6 @@ public class CurveVectorToSpeckleRawConverter(
           }
           break;
 
-        case BG.CurvePrimitive.CurvePrimitiveType.ChildCurveVector:
-          var child = primitive.GetChildCurveVector();
-          if (child is not null)
-          {
-            segments.AddRange(Convert(child));
-          }
-          break;
-
         default:
           break;
       }

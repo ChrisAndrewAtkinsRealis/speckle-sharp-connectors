@@ -23,13 +23,13 @@ public class MicroStationSelectionBinding : ISelectionBinding
     var objectIds = new List<string>();
     var typeNames = new HashSet<string>();
 
-    uint numSelected = BDPN.SelectionSetManager.NumSelected();
+    uint numSelected = BMPN.SelectionSetManager.NumSelected();
     var modelRef = BMPN.Session.Instance.GetActiveDgnModelRef();
 
     for (uint i = 0; i < numSelected; i++)
     {
       BDE.Element? element = null;
-      BDPN.SelectionSetManager.GetElement(i, ref element, ref modelRef);
+      BMPN.SelectionSetManager.GetElement(i, ref element, ref modelRef);
       if (element is null)
       {
         continue;

@@ -1,7 +1,7 @@
 using Speckle.Converters.Common;
 using Speckle.Converters.Common.Objects;
+using Speckle.Converters.MicroStation.Extensions;
 using Speckle.Objects;
-using Speckle.Sdk.Models;
 
 namespace Speckle.Converters.MicroStation.ToSpeckle.Raw;
 
@@ -28,7 +28,7 @@ public class DEllipse3dToSpeckleRawConverter(
       var endPoint = target.PointAtAngle(target.EndAngle);
       double sweep = target.SweepAngle.Radians;
 
-      if (Math.Abs(Math.Abs(sweep) - 2 * Math.PI) < 1e-9 || startPoint.IsEqual(endPoint, 1e-9))
+      if (Math.Abs(Math.Abs(sweep) - 2 * Math.PI) < 1e-9 || startPoint.IsAlmostEqualTo(endPoint, 1e-9))
       {
         // full circle
         return new SOG.Circle

@@ -113,14 +113,14 @@ public class MicroStationBasicConnectorBinding : IBasicConnectorBinding
       try
       {
         var modelRef = BMPN.Session.Instance.GetActiveDgnModelRef();
-        BDPN.SelectionSetManager.EmptyAll();
+        BMPN.SelectionSetManager.EmptyAll();
 
         foreach (string objectId in objectIds)
         {
           var element = _context.FindElement(objectId);
           if (element is not null)
           {
-            BDPN.SelectionSetManager.AddElement(element, modelRef);
+            BMPN.SelectionSetManager.AddElement(element, modelRef);
           }
         }
       }

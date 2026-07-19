@@ -1,5 +1,6 @@
 using Speckle.Converters.Common;
 using Speckle.Converters.Common.Objects;
+using Speckle.Converters.MicroStation.Extensions;
 using Speckle.Converters.MicroStation.ToHost.Helpers;
 using Speckle.Sdk.Models;
 
@@ -22,7 +23,7 @@ public class PolylineToHostConverter(
 
     if (target.closed)
     {
-      if (points.Count > 0 && !points[0].IsEqual(points[^1], 1e-9))
+      if (points.Count > 0 && !points[0].IsAlmostEqualTo(points[^1], 1e-9))
       {
         points.Add(points[0]);
       }

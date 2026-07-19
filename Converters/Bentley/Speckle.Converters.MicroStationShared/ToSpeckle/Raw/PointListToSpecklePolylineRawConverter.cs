@@ -1,5 +1,6 @@
 using Speckle.Converters.Common;
 using Speckle.Converters.Common.Objects;
+using Speckle.Converters.MicroStation.Extensions;
 
 namespace Speckle.Converters.MicroStation.ToSpeckle.Raw;
 
@@ -14,7 +15,7 @@ public class PointListToSpecklePolylineRawConverter(
   {
     double uor = settingsStore.Current.UorPerMaster;
 
-    bool closed = target.Count > 1 && target[0].IsEqual(target[^1], 1e-9);
+    bool closed = target.Count > 1 && target[0].IsAlmostEqualTo(target[^1], 1e-9);
     var points = closed ? target.Take(target.Count - 1) : target;
 
     var coordinates = new List<double>(3 * target.Count);

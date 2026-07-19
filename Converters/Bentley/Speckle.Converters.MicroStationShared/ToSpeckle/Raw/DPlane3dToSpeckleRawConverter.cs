@@ -1,5 +1,6 @@
 using Speckle.Converters.Common;
 using Speckle.Converters.Common.Objects;
+using Speckle.Converters.MicroStation.Extensions;
 
 namespace Speckle.Converters.MicroStation.ToSpeckle.Raw;
 
@@ -15,7 +16,7 @@ public class DPlane3dToSpeckleRawConverter(
 
     // build an orthonormal frame from the normal, mirroring the v2 converter behaviour
     BG.DVector3d xAxis = BG.DVector3d.UnitY.CrossProduct(normal);
-    if (xAxis.IsZeroVector())
+    if (xAxis.IsAlmostZero(1e-12))
     {
       xAxis = BG.DVector3d.UnitX;
     }
