@@ -168,12 +168,20 @@ civil SDK. The connectors reuse the MicroStation geometry base and add civil con
 ### Corridor interoperability (goal)
 
 The target is to send a corridor's full **definition** to Speckle and rebuild it — in ORD, or in **Civil 3D**
-for true ORD↔C3D interop. The way to get there is a **connector-neutral corridor schema** on the Speckle
-side (baseline alignment, active profile, template drops keyed by station, point controls,
-superelevation/cant, target surfaces) that **both** the OpenRoads and Civil 3D connectors map to on send and
-from on receive. The corridor converter already captures the alignment, profile, key stations and surface
-names toward this; template drops / point controls / superelevation are the next data to model. Geometry
-(corridor mesh surfaces) always travels as display value so non-civil consumers still see something.
+for true ORD↔C3D interop. The way to get there is a **connector-neutral corridor schema** that **both** the
+OpenRoads and Civil 3D converters map to on send and from on receive.
+
+That schema now lives in the shared SDK as
+[`Speckle.Converters.Common.Civil.CorridorSchema`](../../Sdk/Speckle.Converters.Common/Civil/CorridorSchema.cs)
+so both connectors reference the exact same keys. A corridor is a `DataObject` with `type = "Corridor"`; its
+`displayValue` always carries the geometry (so non-civil consumers see the model), and its `properties` carry
+the definition: `baseline` (nested `alignment` + `profile` DataObjects), `startStation`/`endStation`,
+`keyStations`, `templateDrops`, `pointControls`, `superelevation` (incl. rail `cant`) and `surfaces`.
+
+The corridor converter already emits the baseline (alignment + active profile, nested as their own converted
+DataObjects), key stations and surface names against this schema; template drops / point controls /
+superelevation are the next data to populate — and the Civil 3D converter mapping to the same
+`CorridorSchema` keys is what closes the ORD↔C3D loop.
 
 ## Notes for the remaining connector
 
