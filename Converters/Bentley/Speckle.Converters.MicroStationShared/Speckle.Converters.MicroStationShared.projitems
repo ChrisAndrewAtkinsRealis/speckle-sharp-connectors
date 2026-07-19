@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <MSBuildAllProjects Condition="'$(MSBuildVersion)' == '' Or '$(MSBuildVersion)' &lt; '16.0'">$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
+    <HasSharedItems>true</HasSharedItems>
+    <SharedGUID>79df457c-cfba-47f4-b6f7-d7f0c7264eb8</SharedGUID>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration">
+    <Import_RootNamespace>Speckle.Converters.MicroStationShared</Import_RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)GlobalUsings.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MicroStationConversionSettings.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MicroStationConversionSettingsFactory.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MicroStationRootToSpeckleConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MicroStationToSpeckleUnitConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ServiceRegistration.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Extensions\ElementCurveExtensions.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Extensions\ElementExtensions.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToHost\Helpers\MicroStationUnitScaler.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToHost\Raw\ICurveToHostRawConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToHost\Geometry\ArcToHostConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToHost\Geometry\CircleToHostConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToHost\Geometry\CurveToHostConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToHost\Geometry\DataObjectConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToHost\Geometry\DisplayableObjectConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToHost\Geometry\EllipseToHostConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToHost\Geometry\LineToHostConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToHost\Geometry\MeshToHostConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToHost\Geometry\PointToHostConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToHost\Geometry\PolycurveToHostConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToHost\Geometry\PolylineToHostConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToSpeckle\Properties\PropertiesExtractor.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToSpeckle\Raw\CurveVectorToSpeckleRawConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToSpeckle\Raw\DEllipse3dToSpeckleRawConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToSpeckle\Raw\DPlane3dToSpeckleRawConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToSpeckle\Raw\DPoint3dToSpeckleRawConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToSpeckle\Raw\DSegment3dToSpeckleRawConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToSpeckle\Raw\DVector3dToSpeckleRawConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToSpeckle\Raw\MSBsplineCurveToSpeckleRawConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToSpeckle\Raw\PointListToSpecklePolylineRawConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToSpeckle\Raw\PolyfaceHeaderToSpeckleRawConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToSpeckle\TopLevel\ArcElementToSpeckleConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToSpeckle\TopLevel\BSplineCurveElementToSpeckleConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToSpeckle\TopLevel\CellHeaderElementToSpeckleConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToSpeckle\TopLevel\ComplexShapeElementToSpeckleConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToSpeckle\TopLevel\ComplexStringElementToSpeckleConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToSpeckle\TopLevel\EllipseElementToSpeckleConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToSpeckle\TopLevel\LineElementToSpeckleConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToSpeckle\TopLevel\LineStringElementToSpeckleConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToSpeckle\TopLevel\MeshHeaderElementToSpeckleConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToSpeckle\TopLevel\ShapeElementToSpeckleConverter.cs" />
+  </ItemGroup>
+</Project>
