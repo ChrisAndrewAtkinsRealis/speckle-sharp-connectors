@@ -19,6 +19,9 @@
     <Compile Include="$(MSBuildThisFileDirectory)HostApp\MicroStationContext.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)HostApp\MicroStationDocumentModelStore.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)HostApp\MicroStationIdleManager.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)HostApp\MicroStationInstanceBaker.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)HostApp\MicroStationInstanceUnpacker.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)HostApp\MicroStationTransformHelper.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Operations\Receive\MicroStationHostObjectBuilder.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Operations\Send\MicroStationRootObject.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Operations\Send\MicroStationRootObjectBuilder.cs" />

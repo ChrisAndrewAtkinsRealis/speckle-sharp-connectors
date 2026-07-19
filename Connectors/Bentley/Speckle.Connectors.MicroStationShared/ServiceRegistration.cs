@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Speckle.Connectors.Common;
 using Speckle.Connectors.Common.Builders;
 using Speckle.Connectors.Common.Caching;
+using Speckle.Connectors.Common.Instances;
 using Speckle.Connectors.Common.Operations;
 using Speckle.Connectors.Common.Threading;
 using Speckle.Connectors.DUI;
@@ -47,6 +48,14 @@ public static class ServiceRegistration
     services.AddSingleton<IBinding, MicroStationSelectionBinding>();
     services.AddSingleton<IBinding, MicroStationSendBinding>();
     services.AddSingleton<IBinding, MicroStationReceiveBinding>();
+
+    // instances (cells / shared cells / parametric cells)
+    services.AddScoped<
+      IInstanceObjectsManager<MicroStationRootObject, List<BDE.Element>>,
+      InstanceObjectsManager<MicroStationRootObject, List<BDE.Element>>
+    >();
+    services.AddScoped<MicroStationInstanceUnpacker>();
+    services.AddScoped<MicroStationInstanceBaker>();
 
     // send
     services.AddScoped<ISendFilter, MicroStationSelectionFilter>();

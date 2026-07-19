@@ -72,6 +72,27 @@ schema objects.
 Units follow MicroStation's UoR (Units of Resolution) scheme: native coordinates are divided by
 `UorPerMaster` on the way to Speckle and multiplied on the way back.
 
+### Cells (MicroStation's blocks)
+
+Cells are **not** flattened — they go through the same instance-proxy system Speckle uses for AutoCAD
+blocks / Revit families, so they round-trip as instances and interop cleanly with other connectors
+(`MicroStationInstanceUnpacker` on send, `MicroStationInstanceBaker` on receive):
+
+| Cell type | Native element | Speckle mapping |
+| --- | --- | --- |
+| **Shared cell** | `SharedCellElement` → `SharedCellDefinitionElement` | True instancing: many `InstanceProxy` placements referencing one shared `InstanceDefinitionProxy` (keyed by definition name). |
+| **Normal / orphan cell** | `CellHeaderElement` | One `InstanceProxy` + a one-off `InstanceDefinitionProxy` keyed by the cell's element id (not shared). |
+| **Parametric cell** | `SharedCellElement` + parameters | Shared-cell path, with the parameter/variable values captured on the instance proxy's `properties`. |
+
+A cell's placement transform is read via the element graphics processor's `AnnounceTransform` callback and
+stored as a column-dominant `Matrix4x4` (translation in master units). Nested cells recurse, preserving
+`maxDepth` so receive bakes definitions before the instances that depend on them.
+
+> The transform math (`MicroStationTransformHelper`) and native shared-cell creation
+> (`MicroStationInstanceBaker.CreateDefinition` / `CreateInstance`) are the surfaces most likely to need
+> adjustment against a live MicroStation SDK build; they are deliberately isolated so any fix stays local.
+> Purging previously-baked cell definitions on re-receive is a follow-up.
+
 ## Notes for the planned connectors
 
 - **OpenRoads / OpenRail** — model these on the **Civil 3D** connector. They add the `Bentley.CifNET.*`
