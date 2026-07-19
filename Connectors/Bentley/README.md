@@ -10,8 +10,8 @@ the converter geometry math is derived from that work (originally authored by Ar
 | App | Versions targeted | Send | Receive | Closest analog in this repo |
 | --- | --- | --- | --- | --- |
 | **MicroStation** | 2026 | ✅ | ✅ | AutoCAD |
-| **OpenRoads Designer** | 2026 | ⚙️ converters scaffolded | planned | Civil 3D |
-| **OpenRail Designer** | 2026 | ⚙️ converters scaffolded | planned | Civil 3D |
+| **OpenRoads Designer** | 2026 | ✅ (civil send) | ⚙️ civil rebuild scaffolded | Civil 3D |
+| **OpenRail Designer** | 2026 | ✅ (civil send) | ⚙️ civil rebuild scaffolded | Civil 3D |
 | OpenBuildings Designer | 2024 | planned | planned | Revit |
 
 **MicroStation 2026** is implemented (send + receive). **OpenRoads/OpenRail 2026** have their civil
@@ -161,9 +161,21 @@ civil SDK. The connectors reuse the MicroStation geometry base and add civil con
   reached via `ConsensusConnectionEdit.GetActive().GetAllGeometricModels()`, then `model.Alignments` /
   `Corridors` / features are enumerated (as in the ATRL/Atom ORD code). Civil entities are resolved via the
   converter manager directly, because the MicroStation root converter only handles native `Element`s.
-- **Still to wire**: plugin bootstrap per vertical (`HostApplications.OpenRoads` / `OpenRail`), a civil model
-  service, and a civil root object builder that adds a `Civil` collection alongside the geometry. OpenRail
-  adds rail-specifics (cant/turnouts) behind the `OPENRAIL` define.
+- **Civil receive / rebuild** (`ToHost`): received Alignment/Corridor DataObjects are regenerated **natively**
+  via the CifNET edit/transient API (`CreateAlignmentByLinearElement`, `CreateProfileByProfileElement`,
+  `CreateCorridorByAlignment`, wrapped in `StartTransientMode`/`PersistTransients`) — not baked as dumb
+  geometry. A `CivilHostRebuilder` (no-op for plain MicroStation) dispatches them from the receive host
+  builder.
+- **Faithful geometry round-trip.** Rebuilding an alignment from *display/stroked* curves loses the true arcs
+  and spirals — a known pitfall that breaks rebuild. So send extracts **structured** horizontal geometry
+  (lines/arcs/spirals + parameters) into the shared
+  [`AlignmentGeometrySchema`](../../Sdk/Speckle.Converters.Common/Civil/AlignmentGeometrySchema.cs), and
+  receive rebuilds from that (`Line.Create` / `CircularArc.Create3` / `Spiral.Create1`). The parametric
+  **read** is the fragile part, so it is fully defensive and display curves are always attached as a
+  visualization + fallback. Profile vertical-curve structure and corridor template drops / point controls /
+  superelevation are the remaining data to model on the schema.
+- **Still to refine**: OpenRail rail-specifics (cant/turnouts) behind the `OPENRAIL` define; corridor
+  template-drop / point-control / superelevation rebuild; and validating every CifNET call against a live SDK.
 
 ### Corridor interoperability (goal)
 
