@@ -61,6 +61,7 @@ public static class ServiceRegistration
     // send
     services.AddScoped<ISendFilter, MicroStationSelectionFilter>();
     services.AddSingleton<ISendConversionCache, SendConversionCache>();
+    services.AddScoped<MicroStationColorUnpacker>();
     services.AddScoped<IRootObjectBuilder<MicroStationRootObject>, MicroStationRootObjectBuilder>();
     services.AddScoped<SendOperation<MicroStationRootObject>>();
 
@@ -75,6 +76,7 @@ public static class ServiceRegistration
     // receive
     services.AddSingleton(DefaultTraversal.CreateTraversalFunc());
     services.AddScoped<MicroStationLevelBaker>();
+    services.AddScoped<MicroStationColorBaker>();
     services.AddScoped<IHostObjectBuilder, MicroStationHostObjectBuilder>();
 
     services.AddMatchingInterfacesAsTransient(connectorAssembly);

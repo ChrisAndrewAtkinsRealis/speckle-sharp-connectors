@@ -21,6 +21,7 @@ public class MicroStationRootObjectBuilder : IRootObjectBuilder<MicroStationRoot
   private readonly ISendConversionCache _sendConversionCache;
   private readonly MicroStationInstanceUnpacker _instanceUnpacker;
   private readonly MicroStationReferenceService _referenceService;
+  private readonly MicroStationColorUnpacker _colorUnpacker;
   private readonly ICivilModelContributor _civilModelContributor;
   private readonly MicroStationContext _context;
   private readonly ILogger<MicroStationRootObjectBuilder> _logger;
@@ -35,6 +36,7 @@ public class MicroStationRootObjectBuilder : IRootObjectBuilder<MicroStationRoot
     ISendConversionCache sendConversionCache,
     MicroStationInstanceUnpacker instanceUnpacker,
     MicroStationReferenceService referenceService,
+    MicroStationColorUnpacker colorUnpacker,
     ICivilModelContributor civilModelContributor,
     MicroStationContext context,
     ILogger<MicroStationRootObjectBuilder> logger
@@ -45,6 +47,7 @@ public class MicroStationRootObjectBuilder : IRootObjectBuilder<MicroStationRoot
     _sendConversionCache = sendConversionCache;
     _instanceUnpacker = instanceUnpacker;
     _referenceService = referenceService;
+    _colorUnpacker = colorUnpacker;
     _civilModelContributor = civilModelContributor;
     _context = context;
     _logger = logger;
@@ -87,7 +90,10 @@ public class MicroStationRootObjectBuilder : IRootObjectBuilder<MicroStationRoot
       onOperationProgressed.Report(new("Converting", (double)++count / unpacked.AtomicObjects.Count));
     }
 
-    // 3 - contribute civil entities (no-op for plain MicroStation; OpenRoads/OpenRail add a "Civil" collection)
+    // 3 - unpack element colours so appearance survives in other apps
+    root[ProxyKeys.COLOR] = _colorUnpacker.UnpackColors(unpacked.AtomicObjects);
+
+    // 4 - contribute civil entities (no-op for plain MicroStation; OpenRoads/OpenRail add a "Civil" collection)
     results.AddRange(_civilModelContributor.Contribute(root, cancellationToken));
 
     if (results.Count > 0 && results.TrueForAll(x => x.Status == Status.ERROR))

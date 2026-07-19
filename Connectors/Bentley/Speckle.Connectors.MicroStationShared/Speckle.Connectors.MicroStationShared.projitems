@@ -17,6 +17,8 @@
     <Compile Include="$(MSBuildThisFileDirectory)Bindings\MicroStationSendBinding.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Filters\MicroStationSelectionFilter.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)HostApp\CivilModelService.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)HostApp\MicroStationColorBaker.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)HostApp\MicroStationColorUnpacker.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)HostApp\MicroStationContext.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)HostApp\MicroStationDocumentModelStore.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)HostApp\MicroStationIdleManager.cs" />

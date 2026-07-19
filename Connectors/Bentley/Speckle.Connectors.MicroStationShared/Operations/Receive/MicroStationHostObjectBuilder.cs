@@ -30,13 +30,15 @@ public class MicroStationHostObjectBuilder : IHostObjectBuilder
   private readonly IReceiveConversionHandler _conversionHandler;
   private readonly MicroStationInstanceBaker _instanceBaker;
   private readonly MicroStationLevelBaker _levelBaker;
+  private readonly MicroStationColorBaker _colorBaker;
 
   public MicroStationHostObjectBuilder(
     IRootToHostConverter converter,
     RootObjectUnpacker rootObjectUnpacker,
     IReceiveConversionHandler conversionHandler,
     MicroStationInstanceBaker instanceBaker,
-    MicroStationLevelBaker levelBaker
+    MicroStationLevelBaker levelBaker,
+    MicroStationColorBaker colorBaker
   )
   {
     _converter = converter;
@@ -44,6 +46,7 @@ public class MicroStationHostObjectBuilder : IHostObjectBuilder
     _conversionHandler = conversionHandler;
     _instanceBaker = instanceBaker;
     _levelBaker = levelBaker;
+    _colorBaker = colorBaker;
   }
 
   public Task<HostObjectBuilderResult> Build(
@@ -72,6 +75,9 @@ public class MicroStationHostObjectBuilder : IHostObjectBuilder
     // pre-create all levels once (durable ids before elements reference them)
     _levelBaker.EnsureLevels(atomicObjects.Select(GetLevelName).Distinct());
 
+    // index received colours so they can be applied to baked elements
+    _colorBaker.ParseColors(unpackedRoot.ColorProxies);
+
     // 2 - convert atomic objects (definition children + regular geometry), keeping an app-id -> element map
     foreach (var traversalContext in atomicObjects)
     {
@@ -84,7 +90,7 @@ public class MicroStationHostObjectBuilder : IHostObjectBuilder
         cancellationToken.ThrowIfCancellationRequested();
 
         string objectId = atomicObject.applicationId ?? atomicObject.id.NotNull();
-        var convertedElements = ConvertAndBake(atomicObject, levelName);
+        var convertedElements = ConvertAndBake(atomicObject, levelName, objectId);
         applicationIdMap[objectId] = convertedElements;
 
         foreach (var element in convertedElements)
@@ -130,7 +136,7 @@ public class MicroStationHostObjectBuilder : IHostObjectBuilder
     return Task.FromResult(new HostObjectBuilderResult(bakedObjectIds, results));
   }
 
-  private List<BDE.Element> ConvertAndBake(Base atomicObject, string levelName)
+  private List<BDE.Element> ConvertAndBake(Base atomicObject, string levelName, string objectId)
   {
     var baked = new List<BDE.Element>();
     object converted = _converter.Convert(atomicObject);
@@ -138,14 +144,14 @@ public class MicroStationHostObjectBuilder : IHostObjectBuilder
     switch (converted)
     {
       case BDE.Element element:
-        AddToModel(element, levelName, baked);
+        AddToModel(element, levelName, objectId, baked);
         break;
 
       // data object conversions return element/base pairs
       case IEnumerable<(BDE.Element, Base)> typedList:
         foreach (var (element, _) in typedList)
         {
-          AddToModel(element, levelName, baked);
+          AddToModel(element, levelName, objectId, baked);
         }
         break;
 
@@ -155,7 +161,7 @@ public class MicroStationHostObjectBuilder : IHostObjectBuilder
         {
           if (obj is BDE.Element element)
           {
-            AddToModel(element, levelName, baked);
+            AddToModel(element, levelName, objectId, baked);
           }
         }
         break;
@@ -163,7 +169,7 @@ public class MicroStationHostObjectBuilder : IHostObjectBuilder
       case IEnumerable<BDE.Element> elements:
         foreach (var element in elements)
         {
-          AddToModel(element, levelName, baked);
+          AddToModel(element, levelName, objectId, baked);
         }
         break;
 
@@ -176,10 +182,11 @@ public class MicroStationHostObjectBuilder : IHostObjectBuilder
     return baked;
   }
 
-  private void AddToModel(BDE.Element element, string levelName, List<BDE.Element> baked)
+  private void AddToModel(BDE.Element element, string levelName, string objectId, List<BDE.Element> baked)
   {
-    // assign the received level (recreating the source structure) before persisting the element
+    // assign the received level (recreating the source structure) and colour before persisting the element
     _levelBaker.SetElementLevel(element, levelName);
+    _colorBaker.ApplyColor(element, objectId);
 
     var status = element.AddToModel();
     if (status == BDPN.StatusInt.Error)
