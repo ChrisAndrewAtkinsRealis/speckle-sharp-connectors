@@ -72,6 +72,25 @@ schema objects.
 Units follow MicroStation's UoR (Units of Resolution) scheme: native coordinates are divided by
 `UorPerMaster` on the way to Speckle and multiplied on the way back.
 
+### Multiple models per file
+
+A DGN file is a container of many models — design models (2D or 3D), drawing models and sheet models. The
+connector operates on the **active model** (whatever the user is currently in), and treats each model as a
+distinct document:
+
+- The root collection is named after the active model and tagged with `fileName`, `modelName`, `modelType`
+  (Design/Drawing/Sheet, as reported by the host) and `dimension` (`2D`/`3D`).
+- `GetDocumentInfo` identifies the document as `file + active model`, so switching models is a distinct
+  document in the UI, with its own model cards.
+- Because element ids are only unique **within** a model, model cards are stored **per model**: the DGN's EC
+  state property holds a `{ modelKey: cardsJson }` envelope keyed by model id, so different models in the same
+  file never cross-contaminate each other's selections.
+
+> Follow-ups: reacting to a live active-model switch inside an open panel needs a model-activation event wired
+> to `MicroStationDocumentModelStore.OnDocumentSwap` (the method exists; the event is not wired yet). Sending a
+> model other than the active one, and sheet/drawing-specific concerns (borders, annotation scale, the sheet's
+> own references) are not specifically handled beyond converting whatever graphic elements are selected.
+
 ### Cells (MicroStation's blocks)
 
 Cells are **not** flattened — they go through the same instance-proxy system Speckle uses for AutoCAD

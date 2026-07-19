@@ -65,8 +65,14 @@ public class MicroStationBasicConnectorBinding : IBasicConnectorBinding
     }
 
     string path = file.GetFileName();
-    string name = System.IO.Path.GetFileName(path);
-    return new DocumentInfo(path, name, path.GetHashCode().ToString());
+    string fileName = System.IO.Path.GetFileName(path);
+    string? modelName = _context.ActiveModelName;
+
+    // a DGN file contains many models; identify the document by file + active model so switching models is
+    // treated as a distinct document (its own model cards)
+    string id = $"{path}|{_context.ActiveModelKey}";
+    string name = string.IsNullOrEmpty(modelName) ? fileName : $"{fileName} [{modelName}]";
+    return new DocumentInfo(id, name, id.GetHashCode().ToString());
   }
 
   public DocumentModelStore GetDocumentState() => _store;

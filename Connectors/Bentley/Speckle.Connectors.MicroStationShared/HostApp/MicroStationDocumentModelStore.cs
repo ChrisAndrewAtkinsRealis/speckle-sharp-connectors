@@ -11,8 +11,9 @@ using Speckle.Sdk;
 namespace Speckle.Connectors.MicroStation.HostApp;
 
 /// <summary>
-/// Persists DUI3 model cards into the DGN file using an EC schema, the same mechanism the v2
-/// connector used for its stream states. State is stored as a single json string property.
+/// Persists DUI3 model cards into the DGN file using an EC schema (the mechanism the v2 connector used for
+/// its stream states). A DGN file can contain many models and element ids are only unique within a model, so
+/// cards are stored per active model: the EC property holds a json envelope of <c>{ modelKey: cardsJson }</c>.
 /// </summary>
 public class MicroStationDocumentModelStore : DocumentModelStore
 {
@@ -62,28 +63,9 @@ public class MicroStationDocumentModelStore : DocumentModelStore
 
     try
     {
-      var scope = FindInstancesScope.CreateScope(file, new FindInstancesScopeOption(DgnECHostType.All));
-      var schema = (ECSchema?)
-        DgnECManager.Manager.LocateSchemaInScope(scope, SCHEMA_NAME, 1, 0, SchemaMatchType.Latest);
-
-      if (schema is null)
-      {
-        ClearAndSave();
-        return;
-      }
-
-      var query = new ECQuery(schema.GetClass(CLASS_NAME));
-      query.SelectClause.SelectAllProperties = true;
-
-      using DgnECInstanceCollection instances = DgnECManager.Manager.FindInstances(scope, query);
-      var stateInstance = instances.FirstOrDefault();
-      if (stateInstance is null)
-      {
-        ClearAndSave();
-        return;
-      }
-
-      LoadFromString(stateInstance[PROPERTY_NAME].StringValue);
+      var envelope = DeserializeEnvelope(ReadRawState(file));
+      envelope.TryGetValue(_context.ActiveModelKey, out string? modelCards);
+      LoadFromString(modelCards ?? string.Empty);
     }
     catch (Exception ex) when (!ex.IsFatal())
     {
@@ -102,32 +84,78 @@ public class MicroStationDocumentModelStore : DocumentModelStore
 
     try
     {
-      DgnECManager manager = DgnECManager.Manager;
-      var scope = FindInstancesScope.CreateScope(file, new FindInstancesScopeOption(DgnECHostType.All));
-
-      IECSchema schema = RetrieveOrCreateSchema(file, scope);
-      IECClass ecClass = schema.GetClass(CLASS_NAME);
-
-      // delete any existing state instances before writing the current state
-      var query = new ECQuery(ecClass);
-      query.SelectClause.SelectAllProperties = true;
-      using (DgnECInstanceCollection instances = manager.FindInstances(scope, query))
-      {
-        foreach (IDgnECInstance instance in instances)
-        {
-          instance.Delete();
-        }
-      }
-
-      DgnECInstanceEnabler instanceEnabler = manager.ObtainInstanceEnabler(file, ecClass);
-      StandaloneECDInstance instance = instanceEnabler.SharedWipInstance;
-      instance.SetAsString(PROPERTY_NAME, modelCardState);
-      instanceEnabler.CreateInstanceOnFile(file, instance);
+      // preserve other models' cards: read the envelope, update only the active model's bucket
+      var envelope = DeserializeEnvelope(ReadRawState(file));
+      envelope[_context.ActiveModelKey] = modelCardState;
+      WriteRawState(file, SerializeEnvelope(envelope));
     }
     catch (Exception ex) when (!ex.IsFatal())
     {
       _logger.LogError(ex, "Failed to save Speckle state to DGN file");
     }
+  }
+
+  private static Dictionary<string, string> DeserializeEnvelope(string? raw)
+  {
+    if (string.IsNullOrEmpty(raw))
+    {
+      return new Dictionary<string, string>();
+    }
+
+    try
+    {
+      return System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(raw!)
+        ?? new Dictionary<string, string>();
+    }
+    catch (System.Text.Json.JsonException)
+    {
+      // not an envelope (or corrupt) - start clean rather than lose the file
+      return new Dictionary<string, string>();
+    }
+  }
+
+  private static string SerializeEnvelope(Dictionary<string, string> envelope) =>
+    System.Text.Json.JsonSerializer.Serialize(envelope);
+
+  private string? ReadRawState(BDPN.DgnFile file)
+  {
+    var scope = FindInstancesScope.CreateScope(file, new FindInstancesScopeOption(DgnECHostType.All));
+    var schema = (ECSchema?)DgnECManager.Manager.LocateSchemaInScope(scope, SCHEMA_NAME, 1, 0, SchemaMatchType.Latest);
+    if (schema is null)
+    {
+      return null;
+    }
+
+    var query = new ECQuery(schema.GetClass(CLASS_NAME));
+    query.SelectClause.SelectAllProperties = true;
+
+    using DgnECInstanceCollection instances = DgnECManager.Manager.FindInstances(scope, query);
+    return instances.FirstOrDefault()?[PROPERTY_NAME].StringValue;
+  }
+
+  private void WriteRawState(BDPN.DgnFile file, string rawState)
+  {
+    DgnECManager manager = DgnECManager.Manager;
+    var scope = FindInstancesScope.CreateScope(file, new FindInstancesScopeOption(DgnECHostType.All));
+
+    IECSchema schema = RetrieveOrCreateSchema(file, scope);
+    IECClass ecClass = schema.GetClass(CLASS_NAME);
+
+    // delete any existing state instances before writing the current state
+    var query = new ECQuery(ecClass);
+    query.SelectClause.SelectAllProperties = true;
+    using (DgnECInstanceCollection instances = manager.FindInstances(scope, query))
+    {
+      foreach (IDgnECInstance instance in instances)
+      {
+        instance.Delete();
+      }
+    }
+
+    DgnECInstanceEnabler instanceEnabler = manager.ObtainInstanceEnabler(file, ecClass);
+    StandaloneECDInstance ecInstance = instanceEnabler.SharedWipInstance;
+    ecInstance.SetAsString(PROPERTY_NAME, rawState);
+    instanceEnabler.CreateInstanceOnFile(file, ecInstance);
   }
 
   private static IECSchema RetrieveOrCreateSchema(BDPN.DgnFile file, FindInstancesScope scope)

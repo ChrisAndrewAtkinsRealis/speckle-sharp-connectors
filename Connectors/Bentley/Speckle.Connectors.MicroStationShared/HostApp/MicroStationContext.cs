@@ -19,6 +19,26 @@ public class MicroStationContext
 
   public string? ActiveFileName => ActiveFile?.GetFileName();
 
+  public string? ActiveModelName => ActiveModel?.ModelName;
+
+  /// <summary>
+  /// A stable key for the active model, used to scope model cards per model (a DGN file can contain many
+  /// models, and element ids are only unique within a model, so cards must not be shared across models).
+  /// </summary>
+  public string ActiveModelKey
+  {
+    get
+    {
+      var model = ActiveModel;
+      if (model is null)
+      {
+        return "none";
+      }
+
+      return model.ModelId.ToString();
+    }
+  }
+
   /// <summary>
   /// Finds an element by its speckle application id. Handles both active-model elements (plain numeric ids)
   /// and reference elements (composite <c>R{attachmentId}:{elementId}</c> ids).

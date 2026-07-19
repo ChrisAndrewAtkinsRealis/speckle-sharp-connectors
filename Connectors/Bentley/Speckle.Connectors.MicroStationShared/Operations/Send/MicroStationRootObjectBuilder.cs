@@ -54,9 +54,17 @@ public class MicroStationRootObjectBuilder : IRootObjectBuilder<MicroStationRoot
     CancellationToken cancellationToken
   )
   {
+    var settings = _converterSettings.Current;
     string fileName = _context.ActiveFileName ?? "MicroStation Model";
-    Collection root = new() { name = System.IO.Path.GetFileNameWithoutExtension(fileName) };
-    root["units"] = _converterSettings.Current.SpeckleUnits;
+
+    // the root represents the active model (a DGN file can contain many models); record its identity so the
+    // source structure - which model, of what type and dimensionality - is preserved.
+    Collection root = new() { name = settings.ModelName };
+    root["units"] = settings.SpeckleUnits;
+    root["fileName"] = System.IO.Path.GetFileName(fileName);
+    root["modelName"] = settings.ModelName;
+    root["modelType"] = settings.ModelType;
+    root["dimension"] = settings.Is3d ? "3D" : "2D";
 
     // 1 - unpack cells into instance proxies + definitions (shared/normal/parametric)
     var unpacked = _instanceUnpacker.UnpackSelection(objects);
