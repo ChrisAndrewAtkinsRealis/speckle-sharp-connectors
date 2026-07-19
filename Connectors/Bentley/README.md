@@ -9,13 +9,15 @@ the converter geometry math is derived from that work (originally authored by Ar
 
 | App | Versions targeted | Send | Receive | Closest analog in this repo |
 | --- | --- | --- | --- | --- |
-| **MicroStation** | 2026 | ✅ (initial) | ✅ (initial) | AutoCAD |
-| OpenRoads Designer | 2026 | planned | planned | Civil 3D |
-| OpenRail Designer | 2026 | planned | planned | Civil 3D |
+| **MicroStation** | 2026 | ✅ | ✅ | AutoCAD |
+| **OpenRoads Designer** | 2026 | ⚙️ converters scaffolded | planned | Civil 3D |
+| **OpenRail Designer** | 2026 | ⚙️ converters scaffolded | planned | Civil 3D |
 | OpenBuildings Designer | 2024 | planned | planned | Revit |
 
-Only **MicroStation 2026** is implemented so far. The other three are planned and intentionally not
-yet scaffolded — the notes below capture the intended approach so they can be added consistently.
+**MicroStation 2026** is implemented (send + receive). **OpenRoads/OpenRail 2026** have their civil
+**converter** layer scaffolded (`Converters/Bentley/Speckle.Converters.OpenRoadsShared`); the connector
+wiring (plugin bootstrap per vertical, civil model service, civil send path) is the next step — see below.
+**OpenBuildings** is still planned.
 
 ## Layout
 
@@ -145,12 +147,46 @@ root (active file)
 > attachment transform need per-reference settings / transform application (a follow-up). Attachment
 > enumeration/resolution is a Bentley-API-dependent surface, isolated in `MicroStationReferenceService`.
 
-## Notes for the planned connectors
+## OpenRoads / OpenRail (civil)
 
-- **OpenRoads / OpenRail** — model these on the **Civil 3D** connector. They add the `Bentley.CifNET.*`
-  civil SDK on top of MicroStation. Alignments, profiles and corridors should be surfaced as
-  `DataObject`s carrying civil properties plus display curves (not legacy schema `Alignment` objects).
-  The MicroStation converter is the geometry base; these projects reference it and add civil converters.
+OpenRoads Designer and OpenRail Designer are MicroStation-based verticals that add the `Bentley.CifNET.*`
+civil SDK. The connectors reuse the MicroStation geometry base and add civil converters.
+
+- **Converters** (`Speckle.Converters.OpenRoadsShared`, shared by both verticals): Alignment / Profile /
+  Corridor / Feature → `DataObject` (display curves reused from the MicroStation curve converter + civil
+  properties), following the Civil 3D connector's `DataObject` approach rather than legacy schema objects.
+  The version projects import the MicroStation **and** civil shared projitems into one assembly, so the
+  MicroStation converter scan registers the civil converters into the same converter manager.
+- **CifNET enumeration** (for the civil send, connector side — next step): the active geometric models are
+  reached via `ConsensusConnectionEdit.GetActive().GetAllGeometricModels()`, then `model.Alignments` /
+  `Corridors` / features are enumerated (as in the ATRL/Atom ORD code). Civil entities are resolved via the
+  converter manager directly, because the MicroStation root converter only handles native `Element`s.
+- **Still to wire**: plugin bootstrap per vertical (`HostApplications.OpenRoads` / `OpenRail`), a civil model
+  service, and a civil root object builder that adds a `Civil` collection alongside the geometry. OpenRail
+  adds rail-specifics (cant/turnouts) behind the `OPENRAIL` define.
+
+### Corridor interoperability (goal)
+
+The target is to send a corridor's full **definition** to Speckle and rebuild it — in ORD, or in **Civil 3D**
+for true ORD↔C3D interop. The way to get there is a **connector-neutral corridor schema** on the Speckle
+side (baseline alignment, active profile, template drops keyed by station, point controls,
+superelevation/cant, target surfaces) that **both** the OpenRoads and Civil 3D connectors map to on send and
+from on receive. The corridor converter already captures the alignment, profile, key stations and surface
+names toward this; template drops / point controls / superelevation are the next data to model. Geometry
+(corridor mesh surfaces) always travels as display value so non-civil consumers still see something.
+
+## Notes for the remaining connector
+
 - **OpenBuildings** — primary workflow is **send/receive with Revit**, so align its data model and
   property extraction with the **Revit** connector's `DataObject` shape to keep round-trips clean. It adds
   the `Bentley.Building.Api` assemblies for grids and building elements.
+
+## Enhancements incorporated from Atom.Platform
+
+Proven Bentley patterns from the author's `Atom.Platform` (ATRL) work have been folded in:
+
+- **Level baking on receive** (`MicroStationLevelBaker`): create levels + `FileLevelCache.Write()` once, and
+  assign elements via `ElementPropertiesSetter.SetLevel().Apply()` (since `Element.LevelId` is getter-only).
+- **CifNET enumeration** pattern (`ConsensusConnectionEdit.GetAllGeometricModels()`) informs the civil send.
+- Earmarked for follow-up: item-type property attachment via `CustomItemHost` / `ItemTypeLibrary`, RGB
+  element colour via `AddRgbColorAttribute`, and `ElementCopyContext` for reference activation.
