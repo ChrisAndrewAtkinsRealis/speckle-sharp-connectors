@@ -9,6 +9,7 @@ using Speckle.Converters.MicroStation;
 using Speckle.Sdk.Common;
 using Speckle.Sdk.Models;
 using Speckle.Sdk.Models.Collections;
+using Speckle.Sdk.Models.GraphTraversal;
 using Speckle.Sdk.Models.Instances;
 using Speckle.Sdk.Pipelines.Progress;
 
@@ -28,18 +29,21 @@ public class MicroStationHostObjectBuilder : IHostObjectBuilder
   private readonly RootObjectUnpacker _rootObjectUnpacker;
   private readonly IReceiveConversionHandler _conversionHandler;
   private readonly MicroStationInstanceBaker _instanceBaker;
+  private readonly MicroStationLevelBaker _levelBaker;
 
   public MicroStationHostObjectBuilder(
     IRootToHostConverter converter,
     RootObjectUnpacker rootObjectUnpacker,
     IReceiveConversionHandler conversionHandler,
-    MicroStationInstanceBaker instanceBaker
+    MicroStationInstanceBaker instanceBaker,
+    MicroStationLevelBaker levelBaker
   )
   {
     _converter = converter;
     _rootObjectUnpacker = rootObjectUnpacker;
     _conversionHandler = conversionHandler;
     _instanceBaker = instanceBaker;
+    _levelBaker = levelBaker;
   }
 
   public Task<HostObjectBuilderResult> Build(
@@ -65,10 +69,14 @@ public class MicroStationHostObjectBuilder : IHostObjectBuilder
     var applicationIdMap = new Dictionary<string, List<BDE.Element>>();
     int count = 0;
 
+    // pre-create all levels once (durable ids before elements reference them)
+    _levelBaker.EnsureLevels(atomicObjects.Select(GetLevelName).Distinct());
+
     // 2 - convert atomic objects (definition children + regular geometry), keeping an app-id -> element map
     foreach (var traversalContext in atomicObjects)
     {
       Base atomicObject = traversalContext.Current;
+      string levelName = GetLevelName(traversalContext);
       onOperationProgressed.Report(new("Converting objects", (double)++count / atomicObjects.Count));
 
       var ex = _conversionHandler.TryConvert(() =>
@@ -76,7 +84,7 @@ public class MicroStationHostObjectBuilder : IHostObjectBuilder
         cancellationToken.ThrowIfCancellationRequested();
 
         string objectId = atomicObject.applicationId ?? atomicObject.id.NotNull();
-        var convertedElements = ConvertAndBake(atomicObject);
+        var convertedElements = ConvertAndBake(atomicObject, levelName);
         applicationIdMap[objectId] = convertedElements;
 
         foreach (var element in convertedElements)
@@ -122,7 +130,7 @@ public class MicroStationHostObjectBuilder : IHostObjectBuilder
     return Task.FromResult(new HostObjectBuilderResult(bakedObjectIds, results));
   }
 
-  private List<BDE.Element> ConvertAndBake(Base atomicObject)
+  private List<BDE.Element> ConvertAndBake(Base atomicObject, string levelName)
   {
     var baked = new List<BDE.Element>();
     object converted = _converter.Convert(atomicObject);
@@ -130,14 +138,14 @@ public class MicroStationHostObjectBuilder : IHostObjectBuilder
     switch (converted)
     {
       case BDE.Element element:
-        AddToModel(element, baked);
+        AddToModel(element, levelName, baked);
         break;
 
       // data object conversions return element/base pairs
       case IEnumerable<(BDE.Element, Base)> typedList:
         foreach (var (element, _) in typedList)
         {
-          AddToModel(element, baked);
+          AddToModel(element, levelName, baked);
         }
         break;
 
@@ -147,7 +155,7 @@ public class MicroStationHostObjectBuilder : IHostObjectBuilder
         {
           if (obj is BDE.Element element)
           {
-            AddToModel(element, baked);
+            AddToModel(element, levelName, baked);
           }
         }
         break;
@@ -155,7 +163,7 @@ public class MicroStationHostObjectBuilder : IHostObjectBuilder
       case IEnumerable<BDE.Element> elements:
         foreach (var element in elements)
         {
-          AddToModel(element, baked);
+          AddToModel(element, levelName, baked);
         }
         break;
 
@@ -168,8 +176,11 @@ public class MicroStationHostObjectBuilder : IHostObjectBuilder
     return baked;
   }
 
-  private static void AddToModel(BDE.Element element, List<BDE.Element> baked)
+  private void AddToModel(BDE.Element element, string levelName, List<BDE.Element> baked)
   {
+    // assign the received level (recreating the source structure) before persisting the element
+    _levelBaker.SetElementLevel(element, levelName);
+
     var status = element.AddToModel();
     if (status == BDPN.StatusInt.Error)
     {
@@ -177,6 +188,26 @@ public class MicroStationHostObjectBuilder : IHostObjectBuilder
     }
 
     baked.Add(element);
+  }
+
+  /// <summary>
+  /// The level for a received object is the name of its nearest ancestor collection in the traversal path
+  /// (levels are modelled as collections on send). Reference sub-collections resolve to their inner level.
+  /// </summary>
+  private static string GetLevelName(TraversalContext traversalContext)
+  {
+    var context = traversalContext.Parent;
+    while (context is not null)
+    {
+      if (context.Current is Collection collection && !string.IsNullOrEmpty(collection.name))
+      {
+        return collection.name;
+      }
+
+      context = context.Parent;
+    }
+
+    return "Default";
   }
 }
 

@@ -66,6 +66,7 @@ public static class ServiceRegistration
 
     // receive
     services.AddSingleton(DefaultTraversal.CreateTraversalFunc());
+    services.AddScoped<MicroStationLevelBaker>();
     services.AddScoped<IHostObjectBuilder, MicroStationHostObjectBuilder>();
 
     services.AddMatchingInterfacesAsTransient(connectorAssembly);
