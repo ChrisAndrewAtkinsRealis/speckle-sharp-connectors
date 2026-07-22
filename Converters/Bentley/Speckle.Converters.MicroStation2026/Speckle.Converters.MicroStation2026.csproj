@@ -1,0 +1,50 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <MicroStationVersion>2026</MicroStationVersion>
+    <DefineConstants>$(DefineConstants);MICROSTATION;MICROSTATION2026</DefineConstants>
+    <Configurations>Debug;Release;Local</Configurations>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+  </PropertyGroup>
+
+  <!--
+    Bentley API assemblies are not redistributable and there is no public NuGet package for them.
+    They are referenced from the local MicroStation 2026 installation. Override MicroStationInstallDir
+    via an environment variable or msbuild property if your installation lives elsewhere.
+  -->
+  <PropertyGroup Label="Bentley SDK">
+    <MicroStationInstallDir Condition="'$(MicroStationInstallDir)' == ''">$(ProgramW6432)\Bentley\MicroStation 2026\MicroStation\</MicroStationInstallDir>
+  </PropertyGroup>
+
+  <ItemGroup Label="Bentley API references">
+    <Reference Include="Bentley.DgnPlatformNET">
+      <HintPath>$(MicroStationInstallDir)Bentley.DgnPlatformNET.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Bentley.GeometryNET">
+      <HintPath>$(MicroStationInstallDir)Bentley.GeometryNET.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Bentley.GeometryNET.Structs">
+      <HintPath>$(MicroStationInstallDir)Bentley.GeometryNET.Structs.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Bentley.ECObjects">
+      <HintPath>$(MicroStationInstallDir)Assemblies\ECFramework\Bentley.ECObjects.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\DUI3\Speckle.Connectors.DUI.WebView\Speckle.Connectors.DUI.WebView.csproj" />
+    <ProjectReference Include="..\..\..\Sdk\Speckle.Converters.Common\Speckle.Converters.Common.csproj" />
+  </ItemGroup>
+
+  <Import Project="..\Speckle.Converters.MicroStationShared\Speckle.Converters.MicroStationShared.projitems" Label="Shared" />
+</Project>

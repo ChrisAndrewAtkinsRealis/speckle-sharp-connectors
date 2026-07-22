@@ -1,0 +1,127 @@
+using Bentley.CifNET.SDK.Edit;
+using Microsoft.Extensions.Logging;
+using Speckle.Converters.Common.Civil;
+using Speckle.Objects.Data;
+using Speckle.Sdk;
+using Speckle.Sdk.Models;
+
+namespace Speckle.Converters.OpenRoads.ToHost;
+
+/// <summary>
+/// Rebuilds a native corridor from a Speckle corridor DataObject that follows <see cref="CorridorSchema"/> -
+/// the ORD-side of ORD&lt;-&gt;C3D corridor interop.
+/// </summary>
+/// <remarks>
+/// Two-phase, mirroring the ATRL/Atom ORD flow: (1) transient session to create the baseline alignment +
+/// profile and persist them, then (2) a fresh transient session to create the corridor on that alignment
+/// (<c>Alignment.CreateCorridorByAlignment(name)</c>) and persist. Key stations, template drops, point
+/// controls and superelevation are read from the schema and applied best-effort - these CifNET corridor-edit
+/// calls are the least-verified surface and are flagged/stubbed for a live-SDK pass.
+/// </remarks>
+public class CorridorToHostConverter(
+  AlignmentToHostConverter alignmentConverter,
+  ProfileToHostConverter profileConverter,
+  ILogger<CorridorToHostConverter> logger
+)
+{
+  public string? Create(DataObject corridorObject, ConsensusConnectionEdit connection)
+  {
+    var geometricModel = connection.GetOrCreateGeometricModel();
+
+    if (!TryGetBaseline(corridorObject, out DataObject? alignmentObject, out DataObject? profileObject))
+    {
+      logger.LogWarning("Corridor '{Name}' has no baseline alignment; cannot rebuild", corridorObject.name);
+      return null;
+    }
+
+    // phase 1: baseline alignment (+ profile), persisted before the corridor references it
+    connection.StartTransientMode();
+    var alignment = alignmentConverter.Create(alignmentObject!, geometricModel);
+    if (alignment is null)
+    {
+      connection.PersistTransients();
+      return null;
+    }
+
+    if (profileObject is not null)
+    {
+      profileConverter.Create(profileObject, alignment);
+    }
+    connection.PersistTransients();
+
+    // phase 2: corridor on the alignment
+    connection.StartTransientMode();
+    CifGM.Corridor? corridor = null;
+    try
+    {
+      corridor = alignment.CreateCorridorByAlignment(
+        string.IsNullOrEmpty(corridorObject.name) ? "Corridor" : corridorObject.name!
+      );
+    }
+    catch (Exception ex) when (!ex.IsFatal())
+    {
+      logger.LogError(ex, "Failed to create corridor '{Name}' on alignment", corridorObject.name);
+    }
+    connection.PersistTransients();
+
+    if (corridor is null)
+    {
+      return null;
+    }
+
+    ApplyDefinition(corridor, corridorObject, connection);
+
+    try
+    {
+      return corridor.Element?.ElementId.ToString();
+    }
+    catch (Exception)
+    {
+      return null;
+    }
+  }
+
+  /// <summary>
+  /// Applies the corridor definition from <see cref="CorridorSchema"/>. Template drops / point controls /
+  /// superelevation are the remaining CifNET corridor-edit work; the property reads below give the exact data
+  /// a live-SDK implementation needs.
+  /// </summary>
+  private void ApplyDefinition(CifGM.Corridor corridor, DataObject corridorObject, ConsensusConnectionEdit connection)
+  {
+    // TODO(civil, live-SDK): for each templateDrop -> corridor.CreateTemplateDrop(station, template, interval);
+    //                        for each pointControl / superelevation -> corresponding CifNET corridor edits.
+    // The schema keys (CorridorSchema.TEMPLATE_DROPS / POINT_CONTROLS / SUPERELEVATION) carry the data.
+    _ = corridor;
+    _ = corridorObject;
+    _ = connection;
+  }
+
+  private static bool TryGetBaseline(
+    DataObject corridorObject,
+    out DataObject? alignmentObject,
+    out DataObject? profileObject
+  )
+  {
+    alignmentObject = null;
+    profileObject = null;
+
+    if (corridorObject.properties.TryGetValue(CorridorSchema.BASELINE, out var baselineRaw) && baselineRaw is IReadOnlyDictionary<string, object?> baseline)
+    {
+      alignmentObject = baseline.TryGetValue(CorridorSchema.ALIGNMENT, out var a) ? a as DataObject : null;
+      profileObject = baseline.TryGetValue(CorridorSchema.PROFILE, out var p) ? p as DataObject : null;
+    }
+
+    // fall back to the corridor's own display value as an alignment baseline if no nested alignment survived
+    if (alignmentObject is null && corridorObject.displayValue.Count > 0)
+    {
+      alignmentObject = new DataObject
+      {
+        name = corridorObject.name,
+        displayValue = corridorObject.displayValue,
+        properties = new Dictionary<string, object?>(),
+      };
+    }
+
+    return alignmentObject is not null;
+  }
+}

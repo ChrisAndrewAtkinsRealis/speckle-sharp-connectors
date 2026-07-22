@@ -1,0 +1,67 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <OpenRoadsVersion>2026</OpenRoadsVersion>
+    <DefineConstants>$(DefineConstants);MICROSTATION;OPENROADS;OPENROADS2026</DefineConstants>
+    <Configurations>Debug;Release;Local</Configurations>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+  </PropertyGroup>
+
+  <!--
+    OpenRoads Designer is built on MicroStation, so both the MicroStation base assemblies and the CifNET
+    civil assemblies live in the OpenRoads install. Not redistributable / no public NuGet - referenced from
+    the local install. Override OpenRoadsInstallDir if yours differs.
+  -->
+  <PropertyGroup Label="Bentley SDK">
+    <OpenRoadsInstallDir Condition="'$(OpenRoadsInstallDir)' == ''">$(ProgramW6432)\Bentley\OpenRoads Designer CE\OpenRoadsDesigner\</OpenRoadsInstallDir>
+  </PropertyGroup>
+
+  <ItemGroup Label="MicroStation base API">
+    <Reference Include="Bentley.DgnPlatformNET">
+      <HintPath>$(OpenRoadsInstallDir)Bentley.DgnPlatformNET.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Bentley.GeometryNET">
+      <HintPath>$(OpenRoadsInstallDir)Bentley.GeometryNET.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Bentley.GeometryNET.Structs">
+      <HintPath>$(OpenRoadsInstallDir)Bentley.GeometryNET.Structs.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Bentley.ECObjects">
+      <HintPath>$(OpenRoadsInstallDir)Assemblies\ECFramework\Bentley.ECObjects.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup Label="CifNET civil API">
+    <Reference Include="Bentley.CifNET.SDK.4.0">
+      <HintPath>$(OpenRoadsInstallDir)Bentley.CifNET.SDK.4.0.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Bentley.CifNET.GeometryModel.4.0">
+      <HintPath>$(OpenRoadsInstallDir)Bentley.CifNET.GeometryModel.4.0.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Bentley.CifNET.LinearGeometry.4.0">
+      <HintPath>$(OpenRoadsInstallDir)Bentley.CifNET.LinearGeometry.4.0.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\DUI3\Speckle.Connectors.DUI.WebView\Speckle.Connectors.DUI.WebView.csproj" />
+    <ProjectReference Include="..\..\..\Sdk\Speckle.Converters.Common\Speckle.Converters.Common.csproj" />
+  </ItemGroup>
+
+  <!-- geometry base + civil converters compile into this single assembly -->
+  <Import Project="..\Speckle.Converters.MicroStationShared\Speckle.Converters.MicroStationShared.projitems" Label="Shared" />
+  <Import Project="..\Speckle.Converters.OpenRoadsShared\Speckle.Converters.OpenRoadsShared.projitems" Label="Shared" />
+</Project>

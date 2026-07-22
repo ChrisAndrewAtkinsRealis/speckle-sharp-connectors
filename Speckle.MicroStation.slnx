@@ -1,0 +1,29 @@
+<Solution>
+  <Configurations>
+    <BuildType Name="Debug" />
+    <BuildType Name="Local" />
+    <BuildType Name="Release" />
+  </Configurations>
+  <Folder Name="/Config/">
+    <File Path=".editorconfig" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Packages.props" />
+    <File Path="global.json" />
+  </Folder>
+  <Folder Name="/Connectors/" />
+  <Folder Name="/Connectors/Bentley/2026/">
+    <Project Path="Connectors\Bentley\Speckle.Connectors.MicroStation2026\Speckle.Connectors.MicroStation2026.csproj" />
+    <Project Path="Converters\Bentley\Speckle.Converters.MicroStation2026\Speckle.Converters.MicroStation2026.csproj" />
+  </Folder>
+  <Folder Name="/Connectors/Bentley/Shared/">
+    <Project Path="Connectors\Bentley\Speckle.Connectors.MicroStationShared\Speckle.Connectors.MicroStationShared.shproj" />
+    <Project Path="Converters\Bentley\Speckle.Converters.MicroStationShared\Speckle.Converters.MicroStationShared.shproj" />
+  </Folder>
+  <Folder Name="/Sdk/">
+    <Project Path="DUI3\Speckle.Connectors.DUI.WebView\Speckle.Connectors.DUI.WebView.csproj" />
+    <Project Path="DUI3\Speckle.Connectors.DUI\Speckle.Connectors.DUI.csproj" />
+    <Project Path="Sdk\Speckle.Connectors.Common\Speckle.Connectors.Common.csproj" />
+    <Project Path="Sdk\Speckle.Connectors.Logging\Speckle.Connectors.Logging.csproj" />
+    <Project Path="Sdk\Speckle.Converters.Common\Speckle.Converters.Common.csproj" />
+  </Folder>
+</Solution>
