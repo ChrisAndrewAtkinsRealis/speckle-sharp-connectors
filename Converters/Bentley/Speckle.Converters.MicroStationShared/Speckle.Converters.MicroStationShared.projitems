@@ -18,6 +18,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)Extensions\ElementCurveExtensions.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Extensions\ElementExtensions.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Extensions\GeometryExtensions.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToHost\Geometry\SolidLikeDataObjectToHostConverter.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToHost\Helpers\MicroStationUnitScaler.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToHost\Raw\ICurveToHostRawConverter.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToHost\Geometry\ArcToHostConverter.cs" />
@@ -45,10 +46,13 @@
     <Compile Include="$(MSBuildThisFileDirectory)ToSpeckle\TopLevel\BSplineCurveElementToSpeckleConverter.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToSpeckle\TopLevel\ComplexShapeElementToSpeckleConverter.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToSpeckle\TopLevel\ComplexStringElementToSpeckleConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToSpeckle\TopLevel\ElementToSpeckleFallbackConverter.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToSpeckle\TopLevel\EllipseElementToSpeckleConverter.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToSpeckle\TopLevel\LineElementToSpeckleConverter.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToSpeckle\TopLevel\LineStringElementToSpeckleConverter.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToSpeckle\TopLevel\MeshHeaderElementToSpeckleConverter.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToSpeckle\TopLevel\ShapeElementToSpeckleConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToSpeckle\TopLevel\SolidElementToSpeckleConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToSpeckle\TopLevel\SurfaceElementToSpeckleConverter.cs" />
   </ItemGroup>
 </Project>

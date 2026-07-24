@@ -50,7 +50,7 @@ public class MicroStationInstanceBaker : IInstanceBaker<List<BDE.Element>>
       .ThenBy(x => x.obj is InstanceDefinitionProxy ? 0 : 1)
       .ToList();
 
-    var definitionNames = new Dictionary<string, string>(); // definition applicationId -> native definition name
+    var definitionsById = new Dictionary<string, (BDE.Element definitionElement, string definitionName)>();
     var conversionResults = new HashSet<ReceiveConversionResult>();
     var createdObjectIds = new HashSet<string>();
     var consumedObjectIds = new HashSet<string>();
@@ -77,8 +77,8 @@ public class MicroStationInstanceBaker : IInstanceBaker<List<BDE.Element>>
             }
 
             string definitionName = $"{definitionProxy.name}-{definitionProxy.applicationId}-{baseLayerName}";
-            CreateDefinition(definitionName, constituents);
-            definitionNames[definitionProxy.applicationId] = definitionName;
+            BDE.Element definitionElement = CreateDefinition(definitionName, constituents);
+            definitionsById[definitionProxy.applicationId] = (definitionElement, definitionName);
 
             var consumed = constituents.Select(e => e.ElementId.ToString()).ToArray();
             consumedObjectIds.UnionWith(consumed);
@@ -87,10 +87,10 @@ public class MicroStationInstanceBaker : IInstanceBaker<List<BDE.Element>>
           }
 
           case InstanceProxy instanceProxy
-            when definitionNames.TryGetValue(instanceProxy.definitionId, out string? definitionName):
+            when definitionsById.TryGetValue(instanceProxy.definitionId, out var definition):
           {
             string instanceId = instanceProxy.applicationId ?? instanceProxy.id.NotNull();
-            var element = CreateInstance(definitionName, instanceProxy);
+            var element = CreateInstance(definition.definitionElement, definition.definitionName, instanceProxy);
 
             applicationIdMap[instanceId] = new List<BDE.Element> { element };
             createdObjectIds.Add(element.ElementId.ToString());
@@ -119,10 +119,10 @@ public class MicroStationInstanceBaker : IInstanceBaker<List<BDE.Element>>
   /// Creates a shared cell definition from already-baked constituent elements and adds it to the model.
   /// Isolated because the native creation API is the least-verified surface.
   /// </summary>
-  private void CreateDefinition(string definitionName, IReadOnlyList<BDE.Element> constituents)
+  private BDE.Element CreateDefinition(string definitionName, IReadOnlyList<BDE.Element> constituents)
   {
     var model = _settingsStore.Current.Model;
-    var definition = new BDE.SharedCellDefinitionElement(model, definitionName);
+    using var definition = new BDE.SharedCellDefinitionElement(model, definitionName);
 
     foreach (var element in constituents)
     {
@@ -130,12 +130,14 @@ public class MicroStationInstanceBaker : IInstanceBaker<List<BDE.Element>>
     }
 
     definition.AddToModel();
+    return model.FindElementById(definition.ElementId)
+      ?? throw new ConversionException($"Could not resolve shared cell definition '{definitionName}' after creation.");
   }
 
   /// <summary>
   /// Places a shared cell instance referencing <paramref name="definitionName"/> at the proxy's transform.
   /// </summary>
-  private BDE.SharedCellElement CreateInstance(string definitionName, InstanceProxy instanceProxy)
+  private BDE.SharedCellElement CreateInstance(BDE.Element definition, string definitionName, InstanceProxy instanceProxy)
   {
     var model = _settingsStore.Current.Model;
 
@@ -145,7 +147,11 @@ public class MicroStationInstanceBaker : IInstanceBaker<List<BDE.Element>>
     double translationScaleToUor = unitScale * _settingsStore.Current.UorPerMaster;
     var transform = MicroStationTransformHelper.ToNativeTransform(instanceProxy.transform, translationScaleToUor);
 
-    var instance = new BDE.SharedCellElement(model, definitionName, transform);
+    var origin = transform.Translation;
+    var rotation = transform.Matrix;
+    var scale = new Bentley.GeometryNET.DPoint3d(1, 1, 1);
+
+    var instance = new BDE.SharedCellElement(model, definition, definitionName, origin, rotation, scale);
     instance.AddToModel();
     return instance;
   }

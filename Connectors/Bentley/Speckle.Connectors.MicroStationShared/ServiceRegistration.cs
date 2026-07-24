@@ -16,6 +16,7 @@ using Speckle.Connectors.MicroStation.Filters;
 using Speckle.Connectors.MicroStation.HostApp;
 using Speckle.Connectors.MicroStation.Operations.Receive;
 using Speckle.Connectors.MicroStation.Operations.Send;
+using Speckle.Sdk;
 using Speckle.Sdk.Models.GraphTraversal;
 
 namespace Speckle.Connectors.MicroStation;

@@ -5,22 +5,38 @@ Guidance for Claude Code (and other AI assistants) working in this repository.
 ## What this repo is
 
 `speckle-sharp-connectors` is the home of Speckle's next-generation .NET
-projects: the shared Desktop UI (DUI3), the host-application connectors, the
-converters that translate between host geometry and the Speckle object model,
-and supporting SDK/tooling. Speckle is an AEC (Architecture, Engineering,
-Construction) data hub, so the connectors plug into CAD/BIM applications.
+projects for authoring-application integrations: the shared Desktop UI (DUI3),
+host-application connectors, the converters that translate between host geometry
+and the Speckle object model, and supporting SDK/tooling. Speckle is an AEC
+(Architecture, Engineering, Construction) data hub, so the connectors plug into
+CAD/BIM applications and publish or load model data.
 
-Upstream lives at `github.com/specklesystems/speckle-sharp-connectors`. The
-Speckle object model and core SDK live in a separate repo,
+The upstream repository is `github.com/specklesystems/speckle-sharp-connectors`.
+The Speckle object model and core SDK live in a separate repo,
 [`speckle-sharp-sdk`](https://github.com/specklesystems/speckle-sharp-sdk),
 consumed here as NuGet packages (see `Local.slnx` for side-by-side work).
+
+## Speckle integration guidance
+
+- Follow the Speckle developer guidance for Building Integrations: choose the
+  integration depth first (publish-only vs publish-and-load) and shape the
+  implementation around that decision.
+- Treat the connector as a data bridge. For send/publish, build a Speckle object
+  graph using `Collection`, `Base`, `DataObject`, `displayValue`, `properties`,
+  and instances/proxies.
+- Preserve instances and proxies where possible (blocks, cells, families,
+  shared definitions) instead of flattening everything.
+- Keep host-specific semantics in `properties` while using `displayValue` for
+  visible geometry.
+- Support unsupported host elements with a fallback `DataObject` converter that
+  preserves display geometry and metadata rather than silently dropping them.
 
 ## Repository layout
 
 - `Connectors/` — host-application connectors, one folder per host
-  (`Autocad`, `CSi`, `Navisworks`, `Revit`, `Rhino`, `Tekla`, `TSD`). Each host
-  typically has version-specific projects plus a `*Shared` shared-project that
-  holds the bulk of the code.
+  (`Autocad`, `Bentley`, `CSi`, `Navisworks`, `Revit`, `Rhino`, `Tekla`, `TSD`).
+  Each host typically has version-specific projects plus a `*Shared` shared-project
+  that holds the bulk of the code.
 - `Converters/` — geometry/data converters, one folder per host (same hosts as
   above, plus `Civil3d`, `Plant3d`). Same `*Shared` shared-project pattern.
 - `DUI3/` — the shared WPF/WebView2 Desktop UI
@@ -30,7 +46,7 @@ consumed here as NuGet packages (see `Local.slnx` for side-by-side work).
   - `Speckle.Converters.Common` — converter interfaces, registration, settings store.
   - `Speckle.Connectors.Logging` — OpenTelemetry.
   - `Speckle.Testing`, `*.Tests` — test infrastructure and unit tests.
-- `Importers/` — file-import job processor and Rhino handler.
+- `Importers/` — file-import job processor and host-specific handler work.
 - `Build/` — a C# Bullseye build project driving all repo automation.
 - Root `*.slnx` files — one solution per host, plus `Speckle.Connectors.slnx`
   (everything) and `Local.slnx` (side-by-side with the SDK repo).
@@ -96,7 +112,7 @@ CSharpier — follow the existing code, and let the tools be the source of truth
     `[NameAndRankValue(typeof(HostType), rank)]` so the converter manager can
     dispatch by type and rank.
   - Compose smaller typed converters via constructor injection rather than one
-    giant switch (see `GeometryBaseConverter` in the Rhino converter).
+    giant switch.
 - **Type aliases via global usings**: converter projects define namespace
   aliases in `GlobalUsings.cs` — e.g. `SOG = Speckle.Objects.Geometry`,
   `RG = Rhino.Geometry`, `SA`, `SO`, `SOP`. Reuse the established aliases;
@@ -114,6 +130,18 @@ CSharpier — follow the existing code, and let the tools be the source of truth
 - New features and bug fixes should come with tests — the contributing guide
   says PRs without tests generally won't be merged.
 - Run everything with `./build.sh test` (or `test-affected` for changed projects).
+
+## Implementation workflow
+
+- When changing the send/publish path, inspect the send binding, selection filter,
+  root object builder, and instance unpacker in that order.
+- When changing receive/load behavior, inspect the host object builder and the
+  relevant host-side converters.
+- When changing the UI/WebView bridge, keep initialization ordering safe and
+  avoid executing scripts before the host is ready.
+- When a change touches a connector for a host application, keep the implementation
+  aligned with the Speckle “desktop host connectivity” and “data & build order”
+  guidance rather than treating it as a host-only API wrapper.
 
 ## Git & PR workflow
 

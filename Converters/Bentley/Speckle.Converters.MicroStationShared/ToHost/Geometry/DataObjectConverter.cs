@@ -28,13 +28,13 @@ public class DataObjectConverter(
       switch (displayObject)
       {
         case SOG.Mesh mesh:
-          result.Add((meshConverter.Convert(mesh), (Base)target));
+          result.Add((meshConverter.Convert(mesh), target));
           break;
         case SOG.Point point:
-          result.Add((pointConverter.Convert(point), (Base)target));
+          result.Add((pointConverter.Convert(point), target));
           break;
         case ICurve curve:
-          result.Add((curveConverter.Convert(curve), (Base)target));
+          result.Add((curveConverter.Convert(curve), target));
           break;
         case DataObject nested:
           result.AddRange(Convert(nested));

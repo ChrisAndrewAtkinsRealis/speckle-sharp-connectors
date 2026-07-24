@@ -1,8 +1,7 @@
 #if OPENROADS || OPENRAIL
-using Bentley.CifNET.SDK.Edit;
+using System.Reflection;
 using Microsoft.Extensions.Logging;
 using Speckle.Converters.OpenRoads.ToHost;
-using Speckle.Objects.Data;
 using Speckle.Sdk;
 using Speckle.Sdk.Models;
 
@@ -32,13 +31,15 @@ public sealed class CivilHostRebuilder : ICivilHostRebuilder
     _logger = logger;
   }
 
-  public bool CanRebuild(Base obj) => obj is DataObject dataObject && GetCivilType(dataObject) is not null;
+  public bool CanRebuild(Base obj) =>
+    obj is Speckle.Objects.Data.DataObject dataObject && GetCivilType(dataObject) is not null;
 
   public IReadOnlyList<string> Rebuild(Base obj)
   {
-    var dataObject = (DataObject)obj;
+    var dataObject = (Speckle.Objects.Data.DataObject)obj;
     string? type = GetCivilType(dataObject);
-    var connection = ConsensusConnectionEdit.GetActive();
+    var connectionType = Type.GetType("Bentley.CifNET.SDK.ConsensusConnection, Bentley.CifNET.SDK.4.0", throwOnError: false);
+    var connection = connectionType?.GetMethod("GetActive", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null);
     if (connection is null)
     {
       return [];
@@ -52,9 +53,13 @@ public sealed class CivilHostRebuilder : ICivilHostRebuilder
         return corridorId is null ? [] : new[] { corridorId };
 
       case TYPE_ALIGNMENT:
-        connection.StartTransientMode();
-        var alignment = _alignmentConverter.Create(dataObject, connection.GetOrCreateGeometricModel());
-        connection.PersistTransients();
+        connection.GetType().GetMethod("StartTransientMode", BindingFlags.Instance | BindingFlags.Public)?.Invoke(connection, null);
+        var alignment = _alignmentConverter.Create(
+          dataObject,
+          connection.GetType().GetMethod("GetOrCreateGeometricModel", BindingFlags.Instance | BindingFlags.Public)?.Invoke(connection, null)
+            ?? throw new InvalidOperationException("Could not get or create Bentley civil geometric model")
+        );
+        connection.GetType().GetMethod("PersistTransients", BindingFlags.Instance | BindingFlags.Public)?.Invoke(connection, null);
         return TryGetElementId(alignment) is string id ? new[] { id } : [];
 
       default:
@@ -62,14 +67,18 @@ public sealed class CivilHostRebuilder : ICivilHostRebuilder
     }
   }
 
-  private static string? GetCivilType(DataObject dataObject) =>
+  private static string? GetCivilType(Speckle.Objects.Data.DataObject dataObject) =>
     dataObject["type"] is string type && type is TYPE_ALIGNMENT or TYPE_CORRIDOR ? type : null;
 
-  private string? TryGetElementId(CifGM.Alignment? alignment)
+  private string? TryGetElementId(object? alignment)
   {
     try
     {
-      return alignment?.Element?.ElementId.ToString();
+      return alignment is null
+        ? null
+        : alignment.GetType().GetProperty("Element", BindingFlags.Instance | BindingFlags.Public)?.GetValue(alignment)?.GetType().GetProperty("ElementId", BindingFlags.Instance | BindingFlags.Public)?.GetValue(
+          alignment.GetType().GetProperty("Element", BindingFlags.Instance | BindingFlags.Public)?.GetValue(alignment)
+        )?.ToString();
     }
     catch (Exception ex) when (!ex.IsFatal())
     {

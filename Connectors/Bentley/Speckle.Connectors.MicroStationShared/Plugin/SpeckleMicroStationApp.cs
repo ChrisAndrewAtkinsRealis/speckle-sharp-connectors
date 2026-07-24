@@ -11,17 +11,16 @@ namespace Speckle.Connectors.MicroStation.Plugin;
 [AddIn(MdlTaskID = "Speckle")]
 public sealed class SpeckleMicroStationApp : AddIn
 {
-  private static SpeckleMicroStationApp? s_instance;
-
   public SpeckleMicroStationApp(IntPtr mdlDesc)
-    : base(mdlDesc) { }
+    : base(mdlDesc)
+  {
+    Instance = this;
+  }
 
-  public static SpeckleMicroStationApp? Instance => s_instance;
+  public static SpeckleMicroStationApp? Instance { get; private set; }
 
   protected override int Run(string[] commandLine)
   {
-    s_instance = this;
-
     // Speckle and its dependencies are deployed next to this assembly; help the CLR find them.
     AppDomain.CurrentDomain.AssemblyResolve += OnAssemblyResolve;
 

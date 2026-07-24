@@ -72,7 +72,7 @@ public class MicroStationLevelBaker
     try
     {
       LevelId levelId = GetOrCreateLevel(levelName);
-      var setter = new ElementPropertiesSetter();
+      using var setter = new ElementPropertiesSetter();
       setter.SetLevel(levelId);
       setter.Apply(element);
     }

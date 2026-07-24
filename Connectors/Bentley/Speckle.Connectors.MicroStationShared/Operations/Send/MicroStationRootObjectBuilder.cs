@@ -5,6 +5,8 @@ using Speckle.Connectors.Common.Conversion;
 using Speckle.Connectors.Common.Operations;
 using Speckle.Connectors.MicroStation.HostApp;
 using Speckle.Converters.Common;
+using Speckle.Converters.Common.Objects;
+using Speckle.Converters.Common.Registration;
 using Speckle.Converters.MicroStation;
 using Speckle.Sdk;
 using Speckle.Sdk.Models;
@@ -16,7 +18,7 @@ namespace Speckle.Connectors.MicroStation.Operations.Send;
 
 public class MicroStationRootObjectBuilder : IRootObjectBuilder<MicroStationRootObject>
 {
-  private readonly IRootToSpeckleConverter _converter;
+  private readonly IConverterManager<IToSpeckleTopLevelConverter> _toSpeckle;
   private readonly IConverterSettingsStore<MicroStationConversionSettings> _converterSettings;
   private readonly ISendConversionCache _sendConversionCache;
   private readonly MicroStationInstanceUnpacker _instanceUnpacker;
@@ -31,7 +33,7 @@ public class MicroStationRootObjectBuilder : IRootObjectBuilder<MicroStationRoot
   private readonly Dictionary<string, Collection> _levelCollections = new();
 
   public MicroStationRootObjectBuilder(
-    IRootToSpeckleConverter converter,
+    IConverterManager<IToSpeckleTopLevelConverter> toSpeckle,
     IConverterSettingsStore<MicroStationConversionSettings> converterSettings,
     ISendConversionCache sendConversionCache,
     MicroStationInstanceUnpacker instanceUnpacker,
@@ -42,7 +44,7 @@ public class MicroStationRootObjectBuilder : IRootObjectBuilder<MicroStationRoot
     ILogger<MicroStationRootObjectBuilder> logger
   )
   {
-    _converter = converter;
+    _toSpeckle = toSpeckle;
     _converterSettings = converterSettings;
     _sendConversionCache = sendConversionCache;
     _instanceUnpacker = instanceUnpacker;
@@ -127,7 +129,8 @@ public class MicroStationRootObjectBuilder : IRootObjectBuilder<MicroStationRoot
       }
       else
       {
-        converted = _converter.Convert(element);
+        var objectConverter = _toSpeckle.ResolveConverter(element.GetType());
+        converted = objectConverter.Convert(element);
         converted.applicationId = applicationId;
       }
 
@@ -176,7 +179,7 @@ public class MicroStationRootObjectBuilder : IRootObjectBuilder<MicroStationRoot
 
   private Collection GetOrCreateReferenceCollection(
     ulong attachmentId,
-    MicroStationReferenceService.ReferenceInfo? info,
+    ReferenceInfo? info,
     Collection root
   )
   {

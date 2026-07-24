@@ -1,11 +1,9 @@
 using Speckle.Connectors.Common.Builders;
 using Speckle.Connectors.Common.Conversion;
-using Speckle.Connectors.Common.Instances;
 using Speckle.Connectors.Common.Operations;
 using Speckle.Connectors.Common.Operations.Receive;
 using Speckle.Connectors.MicroStation.HostApp;
 using Speckle.Converters.Common;
-using Speckle.Converters.MicroStation;
 using Speckle.Sdk.Common;
 using Speckle.Sdk.Models;
 using Speckle.Sdk.Models.Collections;

@@ -24,13 +24,13 @@ public class MicroStationSelectionBinding : ISelectionBinding
     var objectIds = new List<string>();
     var typeNames = new HashSet<string>();
 
-    uint numSelected = BMPN.SelectionSetManager.NumSelected();
+    uint numSelected = BDPN.SelectionSetManager.NumSelected();
     var modelRef = BMPN.Session.Instance.GetActiveDgnModelRef();
 
     for (uint i = 0; i < numSelected; i++)
     {
       BDE.Element? element = null;
-      BMPN.SelectionSetManager.GetElement(i, ref element, ref modelRef);
+      BDPN.SelectionSetManager.GetElement(i, ref element, ref modelRef);
       if (element is null)
       {
         continue;
@@ -38,10 +38,9 @@ public class MicroStationSelectionBinding : ISelectionBinding
 
       // reference elements carry their own model ref (a DgnAttachment); encode them so they can be told
       // apart from active-model elements and resolved back through the attachment on send.
-      string id =
-        modelRef is BDPN.DgnAttachment attachment
-          ? MicroStationReferenceService.EncodeReferenceId(attachment, element)
-          : element.ElementId.ToString();
+      string id = modelRef is BDPN.DgnAttachment attachment
+        ? MicroStationReferenceService.EncodeReferenceId(attachment, element)
+        : element.ElementId.ToString();
 
       objectIds.Add(id);
       typeNames.Add(element.GetType().Name);

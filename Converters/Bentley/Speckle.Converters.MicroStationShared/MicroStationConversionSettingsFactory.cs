@@ -19,7 +19,7 @@ public class MicroStationConversionSettingsFactory(IHostToSpeckleUnitConverter<s
     // NOTE: ModelName/Is3D/ModelType are Bentley-API-dependent reads; ModelType is emitted as its raw enum
     // string to avoid depending on specific enum member names.
     string modelName = model.ModelName ?? "Default";
-    bool is3d = modelInfo.Is3D;
+    bool is3d = modelInfo.Is3d;
     string modelType = model.ModelType.ToString();
 
     return new(

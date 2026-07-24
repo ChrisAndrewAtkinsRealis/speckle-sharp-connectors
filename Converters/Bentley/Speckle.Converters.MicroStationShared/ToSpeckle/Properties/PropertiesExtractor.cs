@@ -30,8 +30,8 @@ public class PropertiesExtractor
         {
           continue;
         }
-
-        string groupName = instance.ClassDefinition?.DisplayLabel ?? instance.ClassDefinition?.Name ?? "EC Data";
+        // force class definition to load, so we can get its label
+        string groupName = instance.ClassDefinition.DisplayLabel ?? instance.ClassDefinition.Name ?? "EC Data";
         if (!properties.ContainsKey(groupName))
         {
           properties[groupName] = group;

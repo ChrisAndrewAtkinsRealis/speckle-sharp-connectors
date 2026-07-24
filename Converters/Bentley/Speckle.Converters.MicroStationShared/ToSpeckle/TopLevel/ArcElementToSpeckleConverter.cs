@@ -14,7 +14,7 @@ public class ArcElementToSpeckleConverter(ITypedConverter<BG.DEllipse3d, ICurve>
   public Base Convert(object target) => Convert((BDE.ArcElement)target);
 
   public Base Convert(BDE.ArcElement target)
-  {
+  { 
     var vec = target.GetCurveVectorOrNull() ?? throw new ConversionException("Arc element has no curve geometry.");
 
     var primitive = vec.GetPrimitive(0);

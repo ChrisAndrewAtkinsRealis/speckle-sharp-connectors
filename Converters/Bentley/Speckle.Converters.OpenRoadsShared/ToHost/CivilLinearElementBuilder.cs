@@ -1,3 +1,4 @@
+using System.Reflection;
 using Speckle.Converters.Common;
 using Speckle.Converters.Common.Civil;
 using Speckle.Converters.MicroStation;
@@ -75,10 +76,17 @@ public class CivilLinearElementBuilder(
     switch (type)
     {
       case AlignmentGeometrySchema.LINE:
-        return CifLG.Line.Create(Point(segment, AlignmentGeometrySchema.START), Point(segment, AlignmentGeometrySchema.END));
+        return CreateLinearGeometryElement<CifLG.LinearElement>(
+          typeof(CifLG.Line),
+          "Create",
+          Point(segment, AlignmentGeometrySchema.START),
+          Point(segment, AlignmentGeometrySchema.END)
+        );
 
       case AlignmentGeometrySchema.ARC:
-        return CifLG.CircularArc.Create3(
+        return CreateLinearGeometryElement<CifLG.LinearElement>(
+          typeof(CifLG.CircularArc),
+          "Create3",
           Point(segment, AlignmentGeometrySchema.START),
           Point(segment, AlignmentGeometrySchema.END),
           Point(segment, AlignmentGeometrySchema.THROUGH)
@@ -89,7 +97,9 @@ public class CivilLinearElementBuilder(
           (segment.TryGetValue(AlignmentGeometrySchema.DIRECTION, out var d) ? d as string : null) == "ccw"
             ? CifLG.Hand.CounterClockwise
             : CifLG.Hand.Clockwise;
-        return CifLG.Spiral.Create1(
+        return CreateLinearGeometryElement<CifLG.LinearElement>(
+          typeof(CifLG.Spiral),
+          "Create1",
           Point(segment, AlignmentGeometrySchema.START),
           Double(segment, AlignmentGeometrySchema.START_RADIUS),
           Double(segment, AlignmentGeometrySchema.END_RADIUS),
@@ -104,11 +114,32 @@ public class CivilLinearElementBuilder(
     }
   }
 
+  private static TLinearElement CreateLinearGeometryElement<TLinearElement>(Type geometryType, string methodName, params object?[] arguments)
+    where TLinearElement : class
+  {
+    foreach (var method in geometryType.GetMethods(BindingFlags.Public | BindingFlags.Static))
+    {
+      if (method.Name != methodName || method.GetParameters().Length != arguments.Length)
+      {
+        continue;
+      }
+
+      if (!method.ReturnType.IsAssignableTo(typeof(TLinearElement)))
+      {
+        continue;
+      }
+
+      return (TLinearElement)method.Invoke(null, arguments)!;
+    }
+
+    throw new MissingMethodException(geometryType.FullName, methodName);
+  }
+
   private BG.DPoint3d Point(IReadOnlyDictionary<string, object?> segment, string key)
   {
     if (segment.TryGetValue(key, out var raw) && raw is IEnumerable<object?> coords)
     {
-      var values = coords.Select(System.Convert.ToDouble).ToArray();
+      var values = coords.Select(static c => Convert.ToDouble(c)).ToArray();
       if (values.Length >= 3)
       {
         double factor = settingsStore.Current.UorPerMaster;
@@ -120,7 +151,7 @@ public class CivilLinearElementBuilder(
   }
 
   private static double Double(IReadOnlyDictionary<string, object?> segment, string key) =>
-    segment.TryGetValue(key, out var raw) && raw is not null ? System.Convert.ToDouble(raw) : 0;
+    segment.TryGetValue(key, out var raw) && raw is not null ? Convert.ToDouble(raw) : 0;
 
   // ---- display-curve fallback (straight segments through the display points) ----
 
@@ -137,11 +168,20 @@ public class CivilLinearElementBuilder(
     {
       if (!points[i].IsAlmostEqual(points[i + 1]))
       {
-        elements.Add(CifLG.Line.Create(points[i], points[i + 1]));
+        elements.Add(CreateLinearGeometryElement<CifLG.LinearElement>(typeof(CifLG.Line), "Create", points[i], points[i + 1]));
       }
     }
 
-    return elements.Count == 0 ? null : CifLG.LinearComplex.Create1(elements.ToArray(), false, false, 0.001);
+    return elements.Count == 0
+      ? null
+      : CreateLinearGeometryElement<CifLG.LinearComplex>(
+        typeof(CifLG.LinearComplex),
+        "Create1",
+        elements.ToArray(),
+        false,
+        false,
+        0.001
+      );
   }
 
   private List<BG.DPoint3d> ExtractPoints(IReadOnlyList<Base> displayValue)
@@ -229,3 +269,4 @@ internal static class DPoint3dCivilExtensions
     return dx * dx + dy * dy + dz * dz <= 1e-12;
   }
 }
+
