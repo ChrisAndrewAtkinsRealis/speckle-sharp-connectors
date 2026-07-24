@@ -1,5 +1,5 @@
 #if OPENROADS || OPENRAIL
-using Bentley.CifNET.SDK.Edit;
+using System.Reflection;
 using Microsoft.Extensions.Logging;
 using Speckle.Sdk;
 
@@ -32,16 +32,28 @@ public class CivilModelService
 
     try
     {
-      var connection = ConsensusConnectionEdit.GetActive();
+      var connectionType = Type.GetType(
+        "Bentley.CifNET.SDK.ConsensusConnection, Bentley.CifNET.SDK.4.0",
+        throwOnError: false
+      );
+      var connection = connectionType?.GetMethod("GetActive", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null);
       if (connection is null)
       {
         return entities;
       }
 
-      foreach (var geometricModel in connection.GetAllGeometricModels())
+      if (connection.GetType().GetMethod("GetAllGeometricModels", BindingFlags.Instance | BindingFlags.Public)?.Invoke(connection, null) is System.Collections.IEnumerable geometricModels)
       {
-        AddRange(entities, () => geometricModel.Alignments);
-        AddRange(entities, () => geometricModel.Corridors);
+        foreach (var geometricModel in geometricModels)
+        {
+          if (geometricModel is null)
+          {
+            continue;
+          }
+
+          AddRange(entities, () => geometricModel.GetType().GetProperty("Alignments", BindingFlags.Instance | BindingFlags.Public)?.GetValue(geometricModel) as System.Collections.IEnumerable);
+          AddRange(entities, () => geometricModel.GetType().GetProperty("Corridors", BindingFlags.Instance | BindingFlags.Public)?.GetValue(geometricModel) as System.Collections.IEnumerable);
+        }
       }
     }
     catch (Exception ex) when (!ex.IsFatal())

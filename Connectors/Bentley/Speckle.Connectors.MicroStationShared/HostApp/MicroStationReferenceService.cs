@@ -3,6 +3,9 @@ using Speckle.Sdk;
 
 namespace Speckle.Connectors.MicroStation.HostApp;
 
+/// <summary>The referenced file name, model and attachment for a reference element (for grouping on send).</summary>
+internal sealed record ReferenceInfo(string Name, BDPN.DgnModel Model, BDPN.DgnAttachment Attachment);
+
 /// <summary>
 /// Resolves elements that live in attached references (read-only attached models).
 /// </summary>
@@ -29,10 +32,8 @@ public class MicroStationReferenceService
     _logger = logger;
   }
 
-  public static bool IsReferenceId(string applicationId) => applicationId.StartsWith(REFERENCE_PREFIX, StringComparison.Ordinal);
-
-  /// <summary>The referenced file name, model and attachment for a reference element (for grouping on send).</summary>
-  public sealed record ReferenceInfo(string Name, BDPN.DgnModel Model, BDPN.DgnAttachment Attachment);
+  public static bool IsReferenceId(string applicationId) =>
+    applicationId.StartsWith(REFERENCE_PREFIX, StringComparison.Ordinal);
 
   public static bool TryGetAttachmentId(string applicationId, out ulong attachmentId) =>
     TryDecode(applicationId, out attachmentId, out _);
@@ -41,7 +42,7 @@ public class MicroStationReferenceService
   /// Builds the composite id for an element selected inside a reference attachment.
   /// </summary>
   public static string EncodeReferenceId(BDPN.DgnAttachment attachment, BDE.Element element) =>
-    $"{REFERENCE_PREFIX}{attachment.ElementId}:{element.ElementId}";
+    $"{REFERENCE_PREFIX}{attachment.GetElementId()}:{element.ElementId}";
 
   private static bool TryDecode(string applicationId, out ulong attachmentId, out ulong elementId)
   {
@@ -53,7 +54,7 @@ public class MicroStationReferenceService
       return false;
     }
 
-    var parts = applicationId.Substring(REFERENCE_PREFIX.Length).Split(':');
+    var parts = applicationId[REFERENCE_PREFIX.Length..].Split(':');
     return parts.Length == 2
       && ulong.TryParse(parts[0], out attachmentId)
       && ulong.TryParse(parts[1], out elementId);
@@ -87,7 +88,7 @@ public class MicroStationReferenceService
   /// Resolves the reference (file name + model) an attachment id points to, for grouping reference elements
   /// under a per-source collection on send.
   /// </summary>
-  public ReferenceInfo? GetReferenceInfo(BDPN.DgnModel activeModel, ulong attachmentId)
+  internal ReferenceInfo? GetReferenceInfo(BDPN.DgnModel activeModel, ulong attachmentId)
   {
     try
     {
@@ -116,7 +117,7 @@ public class MicroStationReferenceService
       string? path = attachment.GetDgnModel()?.GetDgnFile()?.GetFileName();
       return string.IsNullOrEmpty(path) ? null : System.IO.Path.GetFileName(path);
     }
-    catch (Exception)
+    catch (Exception ex) when (!ex.IsFatal())
     {
       return null;
     }
@@ -126,7 +127,7 @@ public class MicroStationReferenceService
   {
     foreach (var attachment in EnumerateAttachments(activeModel))
     {
-      if (attachment.ElementId == (BDPN.ElementId)attachmentId)
+      if (attachment.GetElementId() == (BDPN.ElementId)attachmentId)
       {
         return attachment;
       }

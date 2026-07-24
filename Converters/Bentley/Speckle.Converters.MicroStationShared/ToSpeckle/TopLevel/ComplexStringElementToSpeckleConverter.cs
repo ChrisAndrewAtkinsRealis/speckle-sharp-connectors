@@ -18,8 +18,7 @@ public class ComplexStringElementToSpeckleConverter(
   public SOG.Polycurve Convert(BDE.ComplexStringElement target)
   {
     var vec =
-      target.GetCurveVectorOrNull()
-      ?? throw new ConversionException("Complex string element has no curve geometry.");
+      target.GetCurveVectorOrNull() ?? throw new ConversionException("Complex string element has no curve geometry.");
 
     return new SOG.Polycurve
     {

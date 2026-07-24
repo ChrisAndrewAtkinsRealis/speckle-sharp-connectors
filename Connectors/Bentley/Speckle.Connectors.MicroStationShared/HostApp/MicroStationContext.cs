@@ -35,7 +35,7 @@ public class MicroStationContext
         return "none";
       }
 
-      return model.ModelId.ToString();
+      return model.GetModelId().ToString();
     }
   }
 

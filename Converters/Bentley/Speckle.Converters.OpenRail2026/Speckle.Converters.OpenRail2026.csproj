@@ -19,10 +19,16 @@
     the local install. Override OpenRailInstallDir if yours differs.
   -->
   <PropertyGroup Label="Bentley SDK">
-    <OpenRailInstallDir Condition="'$(OpenRailInstallDir)' == ''">$(ProgramW6432)\Bentley\OpenRail Designer CE\OpenRailDesigner\</OpenRailInstallDir>
+    <OpenRailInstallDir Condition="'$(OpenRailInstallDir)' == ''">$(ProgramW6432)\Bentley\OpenRail Designer 2026.00\OpenRailDesigner\</OpenRailInstallDir>
   </PropertyGroup>
 
   <ItemGroup Label="MicroStation base API">
+    <Reference Include="Bentley.CifNET.GeometryModel.SDK.4.0">
+      <HintPath>..\..\..\..\..\Program Files\Bentley\OpenRail Designer 2026.00\OpenRailDesigner\Cif\Bentley.CifNET.GeometryModel.SDK.4.0.dll</HintPath>
+    </Reference>
+    <Reference Include="Bentley.CifNET.GeometryModel.SDK.Edit.4.0">
+      <HintPath>..\..\..\..\..\Program Files\Bentley\OpenRail Designer 2026.00\OpenRailDesigner\Cif\Bentley.CifNET.GeometryModel.SDK.Edit.4.0.dll</HintPath>
+    </Reference>
     <Reference Include="Bentley.DgnPlatformNET">
       <HintPath>$(OpenRailInstallDir)Bentley.DgnPlatformNET.dll</HintPath>
       <Private>false</Private>
@@ -35,23 +41,23 @@
       <HintPath>$(OpenRailInstallDir)Bentley.GeometryNET.Structs.dll</HintPath>
       <Private>false</Private>
     </Reference>
-    <Reference Include="Bentley.ECObjects">
-      <HintPath>$(OpenRailInstallDir)Assemblies\ECFramework\Bentley.ECObjects.dll</HintPath>
+    <Reference Include="Bentley.ECObjects3">
+      <HintPath>$(OpenRailInstallDir)Assemblies\ECFramework\Bentley.ECObjects3.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>
 
   <ItemGroup Label="CifNET civil API">
     <Reference Include="Bentley.CifNET.SDK.4.0">
-      <HintPath>$(OpenRailInstallDir)Bentley.CifNET.SDK.4.0.dll</HintPath>
+      <HintPath>$(OpenRailInstallDir)Cif\Bentley.CifNET.SDK.4.0.dll</HintPath>
       <Private>false</Private>
     </Reference>
-    <Reference Include="Bentley.CifNET.GeometryModel.4.0">
-      <HintPath>$(OpenRailInstallDir)Bentley.CifNET.GeometryModel.4.0.dll</HintPath>
+    <Reference Include="Bentley.CifNET.Model.4.0">
+      <HintPath>$(OpenRailInstallDir)Cif\Bentley.CifNET.Model.4.0.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Bentley.CifNET.LinearGeometry.4.0">
-      <HintPath>$(OpenRailInstallDir)Bentley.CifNET.LinearGeometry.4.0.dll</HintPath>
+      <HintPath>$(OpenRailInstallDir)Cif\Bentley.CifNET.LinearGeometry.4.0.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>

@@ -69,11 +69,12 @@ public class MicroStationColorUnpacker
     argb = 0;
     try
     {
-      uint raw = new ElementPropertiesGetter(element).Color;
+      using BDPN.ElementPropertiesGetter elementPropertyGetter = new(element);
+      int raw = (int)elementPropertyGetter.Color;
 
       // resolve the raw colour (index or TBGR) against the model colour map to RGB bytes
-      DgnColorMap colorMap = DgnColorMap.GetElementColorMap(element.DgnModel);
-      var rgb = colorMap.GetTbgrColorFromIndex((int)raw);
+      DgnColorMap colorMap = DgnColorMap.GetForDisplay(element.DgnModel);
+      var rgb = colorMap.GetTbgrColors()[raw];
 
       // Tbgr packs bytes as 0x00BBGGRR
       byte r = (byte)(rgb & 0xFF);

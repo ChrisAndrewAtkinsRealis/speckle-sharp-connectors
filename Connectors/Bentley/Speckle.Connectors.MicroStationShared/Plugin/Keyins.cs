@@ -5,5 +5,9 @@ namespace Speckle.Connectors.MicroStation.Plugin;
 /// </summary>
 public static class Keyins
 {
-  public static void Start(string unparsed) => SpeckleMicroStationPanel.CreateOrFocus();
+  public static void Start(string unparsed)
+  {
+    _ = unparsed;
+    SpeckleMicroStationPanel.CreateOrFocus();
+  }
 }

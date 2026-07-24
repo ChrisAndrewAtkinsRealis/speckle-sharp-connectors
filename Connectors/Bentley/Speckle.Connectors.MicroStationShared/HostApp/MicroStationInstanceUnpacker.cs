@@ -73,7 +73,14 @@ public class MicroStationInstanceUnpacker : IInstanceUnpacker<MicroStationRootOb
       string definitionName = instance.CellName ?? instanceId;
       string definitionId = "shared-" + definitionName;
 
-      AddInstanceProxy(instanceId, definitionId, depth, instance, isParametric: TryGetParameters(instance, out var p), p);
+      AddInstanceProxy(
+        instanceId,
+        definitionId,
+        depth,
+        instance,
+        isParametric: TryGetParameters(instance, out var p),
+        p
+      );
 
       // definition is shared across placements: only unpack it once
       if (_instanceObjectsManager.TryGetInstanceDefinitionProxy(definitionId, out _))
@@ -142,12 +149,7 @@ public class MicroStationInstanceUnpacker : IInstanceUnpacker<MicroStationRootOb
     _instanceObjectsManager.AddInstanceProxy(instanceId, instanceProxy);
 
     // track all instances sharing this definition so their maxDepth stays consistent (needed for receive ordering)
-    if (
-      !_instanceObjectsManager.TryGetInstanceProxiesFromDefinitionId(
-        definitionId,
-        out List<InstanceProxy>? siblings
-      )
-    )
+    if (!_instanceObjectsManager.TryGetInstanceProxiesFromDefinitionId(definitionId, out List<InstanceProxy>? siblings))
     {
       siblings = new List<InstanceProxy>();
       _instanceObjectsManager.AddInstanceProxiesByDefinitionId(definitionId, siblings);
@@ -213,9 +215,16 @@ public class MicroStationInstanceUnpacker : IInstanceUnpacker<MicroStationRootOb
   {
     try
     {
-      // NOTE: shared cell definitions live in the dictionary model; this lookup is one of the surfaces
-      // most likely to need adjustment against a live MicroStation SDK build.
-      return BDE.SharedCellDefinitionElement.FindByName(name, _settingsStore.Current.Model);
+      // shared-cell definitions are addressed by element id through the model dictionary
+      foreach (BDE.Element element in _settingsStore.Current.Model.GetElements())
+      {
+        if (element is BDE.SharedCellDefinitionElement definition && definition.CellName == name)
+        {
+          return definition;
+        }
+      }
+
+      return null;
     }
     catch (Exception ex) when (!ex.IsFatal())
     {
@@ -238,9 +247,11 @@ public class MicroStationInstanceUnpacker : IInstanceUnpacker<MicroStationRootOb
       var all = _propertiesExtractor.GetProperties(instance);
       foreach (var kvp in all)
       {
-        if (kvp.Key.Contains("Parameter", StringComparison.OrdinalIgnoreCase) || kvp.Key.Contains("Variable", StringComparison.OrdinalIgnoreCase))
+        string key = kvp.Key;
+        if (key.IndexOf("Parameter", StringComparison.OrdinalIgnoreCase) >= 0
+          || key.IndexOf("Variable", StringComparison.OrdinalIgnoreCase) >= 0)
         {
-          parameters[kvp.Key] = kvp.Value;
+          parameters[key] = kvp.Value;
         }
       }
     }

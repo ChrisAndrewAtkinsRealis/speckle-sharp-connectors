@@ -24,7 +24,7 @@ public class CivilHorizontalGeometryExtractor(
   ILogger<CivilHorizontalGeometryExtractor> logger
 )
 {
-  public List<Dictionary<string, object?>> Extract(CifGM.Alignment alignment)
+  public List<Dictionary<string, object?>> Extract(CifGMSDK.Alignment alignment)
   {
     var segments = new List<Dictionary<string, object?>>();
 
@@ -41,7 +41,10 @@ public class CivilHorizontalGeometryExtractor(
     }
     catch (Exception ex) when (!ex.IsFatal())
     {
-      logger.LogWarning(ex, "Failed to extract structured horizontal geometry; rebuild will fall back to display curves");
+      logger.LogWarning(
+        ex,
+        "Failed to extract structured horizontal geometry; rebuild will fall back to display curves"
+      );
       segments.Clear();
     }
 

@@ -16,8 +16,7 @@ public class LineElementToSpeckleConverter(
 
   public Base Convert(BDE.LineElement target)
   {
-    var vec =
-      target.GetCurveVectorOrNull() ?? throw new ConversionException("Line element has no curve geometry.");
+    var vec = target.GetCurveVectorOrNull() ?? throw new ConversionException("Line element has no curve geometry.");
 
     vec.GetStartEnd(out BG.DPoint3d startPoint, out BG.DPoint3d endPoint);
 

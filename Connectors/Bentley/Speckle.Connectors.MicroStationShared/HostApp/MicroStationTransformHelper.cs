@@ -1,4 +1,3 @@
-using Bentley;
 using Bentley.DgnPlatformNET;
 using Bentley.GeometryNET;
 using Speckle.DoubleNumerics;
@@ -39,25 +38,30 @@ public static class MicroStationTransformHelper
     return processor.Transform ?? DTransform3d.Identity;
   }
 
-  public static Matrix4x4 ToInstanceMatrix(DTransform3d t, double uorPerMaster) =>
-    new(
-      t[0, 0],
-      t[0, 1],
-      t[0, 2],
-      t[0, 3] / uorPerMaster,
-      t[1, 0],
-      t[1, 1],
-      t[1, 2],
-      t[1, 3] / uorPerMaster,
-      t[2, 0],
-      t[2, 1],
-      t[2, 2],
-      t[2, 3] / uorPerMaster,
+  public static Matrix4x4 ToInstanceMatrix(DTransform3d t, double uorPerMaster)
+  {
+    var m = t.Matrix;
+    var tr = t.Translation;
+
+    return new(
+      m.RowX.X,
+      m.RowX.Y,
+      m.RowX.Z,
+      tr.X / uorPerMaster,
+      m.RowY.X,
+      m.RowY.Y,
+      m.RowY.Z,
+      tr.Y / uorPerMaster,
+      m.RowZ.X,
+      m.RowZ.Y,
+      m.RowZ.Z,
+      tr.Z / uorPerMaster,
       0,
       0,
       0,
       1
     );
+  }
 
   public static DTransform3d ToNativeTransform(Matrix4x4 m, double translationScaleToUor)
   {
@@ -68,7 +72,7 @@ public static class MicroStationTransformHelper
       m.M34 * translationScaleToUor
     );
 
-    return new DTransform3d(rotation, translation);
+    return DTransform3d.FromMatrixAndTranslation(rotation, translation);
   }
 
   /// <summary>
@@ -94,10 +98,7 @@ public static class MicroStationTransformHelper
 
     public override BentleyStatus ProcessCurveVector(CurveVector vector, bool isFilled) => BentleyStatus.Success;
 
-    public override BentleyStatus ProcessCurvePrimitive(
-      CurvePrimitive curvePrimitive,
-      bool isClosed,
-      bool isFilled
-    ) => BentleyStatus.Success;
+    public override BentleyStatus ProcessCurvePrimitive(CurvePrimitive curvePrimitive, bool isClosed, bool isFilled) =>
+      BentleyStatus.Success;
   }
 }

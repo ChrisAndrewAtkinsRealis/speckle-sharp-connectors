@@ -1,11 +1,9 @@
 using System.Runtime.InteropServices;
-using System.Windows.Forms;
 using System.Windows.Forms.Integration;
 using Microsoft.Extensions.DependencyInjection;
 using Speckle.Connectors.Common;
 using Speckle.Connectors.DUI;
 using Speckle.Connectors.DUI.WebView;
-using Speckle.Sdk;
 #if OPENROADS || OPENRAIL
 using Speckle.Converters.OpenRoads;
 #else
@@ -23,6 +21,7 @@ public sealed class SpeckleMicroStationPanel : Form
   private static SpeckleMicroStationPanel? s_instance;
   private static ServiceProvider? s_container;
 
+  [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
   [DllImport("user32.dll", SetLastError = true)]
   private static extern IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, IntPtr value);
 
@@ -36,9 +35,11 @@ public sealed class SpeckleMicroStationPanel : Form
     Height = 700;
     StartPosition = FormStartPosition.CenterScreen;
 
-    var webview = Container.GetRequiredService<DUI3ControlWebView>();
+    var webview = ServiceContainer.GetRequiredService<DUI3ControlWebView>();
     var host = new ElementHost { Child = webview, Dock = DockStyle.Fill };
     Controls.Add(host);
+
+    FormClosing += OnFormClosing;
 
     // parent this window to MicroStation's main window so it stays on top of the host
     IntPtr mainWindow = System.Diagnostics.Process.GetCurrentProcess().MainWindowHandle;
@@ -48,7 +49,16 @@ public sealed class SpeckleMicroStationPanel : Form
     }
   }
 
-  private static ServiceProvider Container => s_container ??= BuildContainer();
+  private void OnFormClosing(object? sender, FormClosingEventArgs e)
+  {
+    if (e.CloseReason == CloseReason.UserClosing)
+    {
+      e.Cancel = true;
+      Hide();
+    }
+  }
+
+  private static ServiceProvider ServiceContainer => s_container ??= BuildContainer();
 
   private static ServiceProvider BuildContainer()
   {
@@ -68,7 +78,7 @@ public sealed class SpeckleMicroStationPanel : Form
     return container;
   }
 
-  private static Application GetHostApplication() =>
+  private static Speckle.Sdk.Application GetHostApplication() =>
 #if OPENROADS
     HostApplications.OpenRoads;
 #elif OPENRAIL
@@ -84,8 +94,14 @@ public sealed class SpeckleMicroStationPanel : Form
   {
     if (s_instance is { IsDisposed: false })
     {
+      if (!s_instance.Visible)
+      {
+        s_instance.Show();
+      }
+
       s_instance.BringToFront();
       s_instance.Focus();
+      s_instance.Activate();
       return;
     }
 

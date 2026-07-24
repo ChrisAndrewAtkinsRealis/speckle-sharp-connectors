@@ -19,10 +19,16 @@
     the local install. Override OpenRoadsInstallDir if yours differs.
   -->
   <PropertyGroup Label="Bentley SDK">
-    <OpenRoadsInstallDir Condition="'$(OpenRoadsInstallDir)' == ''">$(ProgramW6432)\Bentley\OpenRoads Designer CE\OpenRoadsDesigner\</OpenRoadsInstallDir>
+    <OpenRoadsInstallDir Condition="'$(OpenRoadsInstallDir)' == ''">$(ProgramW6432)\Bentley\OpenRoads Designer 2026.00\OpenRoadsDesigner\</OpenRoadsInstallDir>
   </PropertyGroup>
 
   <ItemGroup Label="MicroStation base API">
+    <Reference Include="Bentley.CifNET.GeometryModel.SDK.4.0">
+      <HintPath>..\..\..\..\..\Program Files\Bentley\OpenRoads Designer 2026.00\OpenRoadsDesigner\Cif\Bentley.CifNET.GeometryModel.SDK.4.0.dll</HintPath>
+    </Reference>
+    <Reference Include="Bentley.CifNET.GeometryModel.SDK.Edit.4.0">
+      <HintPath>..\..\..\..\..\Program Files\Bentley\OpenRoads Designer 2026.00\OpenRoadsDesigner\Cif\Bentley.CifNET.GeometryModel.SDK.Edit.4.0.dll</HintPath>
+    </Reference>
     <Reference Include="Bentley.DgnPlatformNET">
       <HintPath>$(OpenRoadsInstallDir)Bentley.DgnPlatformNET.dll</HintPath>
       <Private>false</Private>
@@ -35,23 +41,23 @@
       <HintPath>$(OpenRoadsInstallDir)Bentley.GeometryNET.Structs.dll</HintPath>
       <Private>false</Private>
     </Reference>
-    <Reference Include="Bentley.ECObjects">
-      <HintPath>$(OpenRoadsInstallDir)Assemblies\ECFramework\Bentley.ECObjects.dll</HintPath>
+    <Reference Include="Bentley.ECObjects3">
+      <HintPath>$(OpenRoadsInstallDir)Assemblies\ECFramework\Bentley.ECObjects3.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>
 
   <ItemGroup Label="CifNET civil API">
     <Reference Include="Bentley.CifNET.SDK.4.0">
-      <HintPath>$(OpenRoadsInstallDir)Bentley.CifNET.SDK.4.0.dll</HintPath>
+      <HintPath>$(OpenRoadsInstallDir)Cif\Bentley.CifNET.SDK.4.0.dll</HintPath>
       <Private>false</Private>
     </Reference>
-    <Reference Include="Bentley.CifNET.GeometryModel.4.0">
-      <HintPath>$(OpenRoadsInstallDir)Bentley.CifNET.GeometryModel.4.0.dll</HintPath>
+    <Reference Include="Bentley.CifNET.Model.4.0">
+      <HintPath>$(OpenRoadsInstallDir)Cif\Bentley.CifNET.Model.4.0.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Bentley.CifNET.LinearGeometry.4.0">
-      <HintPath>$(OpenRoadsInstallDir)Bentley.CifNET.LinearGeometry.4.0.dll</HintPath>
+      <HintPath>$(OpenRoadsInstallDir)Cif\Bentley.CifNET.LinearGeometry.4.0.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>

@@ -8,6 +8,11 @@
     <ILRepackTargetConfigurations>Debug;Release;Local</ILRepackTargetConfigurations>
     <ILRepackRenameInternalized>true</ILRepackRenameInternalized>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <!-- Avoid ILRepack on netstandard output used by net48 hosts; merged output can duplicate PolySharp async-disposable shim types at runtime. -->
+    <ILRepackBuildEnable>false</ILRepackBuildEnable>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="ILRepack.FullAuto">
       <PrivateAssets>all</PrivateAssets>

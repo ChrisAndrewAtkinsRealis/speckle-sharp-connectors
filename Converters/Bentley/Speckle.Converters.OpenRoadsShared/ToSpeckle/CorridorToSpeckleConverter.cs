@@ -1,3 +1,4 @@
+using System.Reflection;
 using Speckle.Converters.Common;
 using Speckle.Converters.Common.Civil;
 using Speckle.Converters.Common.Objects;
@@ -21,32 +22,39 @@ namespace Speckle.Converters.OpenRoads.ToSpeckle;
 /// (nested as their own DataObjects via the converter manager), key stations and surface names. Template
 /// drops, point controls and superelevation/cant are the next definition data to populate on the same schema.
 /// </remarks>
-[NameAndRankValue(typeof(CifGM.Corridor), NameAndRankValueAttribute.SPECKLE_DEFAULT_RANK)]
+[NameAndRankValue(
+  typeof(Bentley.CifNET.GeometryModel.RoadwayDesigner.Corridor),
+  NameAndRankValueAttribute.SPECKLE_DEFAULT_RANK
+)]
 public class CorridorToSpeckleConverter(
   ITypedConverter<BG.CurveVector, List<ICurve>> curveVectorConverter,
   IConverterManager<IToSpeckleTopLevelConverter> toSpeckle,
   IConverterSettingsStore<MicroStationConversionSettings> settingsStore
 ) : IToSpeckleTopLevelConverter
 {
-  public Base Convert(object target) => Convert((CifGM.Corridor)target);
+  public Base Convert(object target) => Convert((Bentley.CifNET.GeometryModel.RoadwayDesigner.Corridor)target);
 
-  public DataObject Convert(CifGM.Corridor target)
+  public DataObject Convert(Bentley.CifNET.GeometryModel.RoadwayDesigner.Corridor target)
   {
-    var displayValue = CivilDisplayExtensions.GetDisplayValue(target.Element, curveVectorConverter);
+    var corridor = (object)target;
+    var element = GetPropertyValue(corridor, "Element");
+    List<Base> displayValue = element is BDE.Element elementValue
+      ? CivilDisplayExtensions.GetDisplayValue(elementValue, curveVectorConverter)
+      : [];
     var properties = new Dictionary<string, object?>();
 
     // baseline = alignment (horizontal) + profile (vertical), nested as their own converted DataObjects
     var baseline = new Dictionary<string, object?>();
     Capture(() =>
     {
-      if (target.CorridorAlignment is { } alignment)
+      if (GetPropertyValue(corridor, "CorridorAlignment") is { } alignment)
       {
         baseline[CorridorSchema.ALIGNMENT] = ConvertNested(alignment);
       }
     });
     Capture(() =>
     {
-      if (target.CorridorProfile is { } profile)
+      if (GetPropertyValue(corridor, "CorridorProfile") is { } profile)
       {
         baseline[CorridorSchema.PROFILE] = ConvertNested(profile);
       }
@@ -56,17 +64,22 @@ public class CorridorToSpeckleConverter(
       properties[CorridorSchema.BASELINE] = baseline;
     }
 
-    Capture(() => properties[CorridorSchema.KEY_STATIONS] = target.KeyStations?.ToList());
-    Capture(() => properties[CorridorSchema.SURFACES] = target.CorridorSurfaces?.Select(s => s.Name).ToList());
+    Capture(() => properties[CorridorSchema.KEY_STATIONS] = GetEnumerablePropertyValues(corridor, "KeyStations")?.ToList());
+    Capture(() =>
+      properties[CorridorSchema.SURFACES] = GetEnumerablePropertyValues(corridor, "CorridorSurfaces")?
+        .Select(GetName)
+        .Where(name => !string.IsNullOrEmpty(name))
+        .ToList()
+    );
 
     // TODO(civil): populate CorridorSchema.TEMPLATE_DROPS / POINT_CONTROLS / SUPERELEVATION for full rebuild.
 
     string name;
     try
     {
-      name = target.Name ?? "Corridor";
+      name = GetPropertyValue(corridor, "Name") as string ?? "Corridor";
     }
-    catch (Exception)
+    catch (Exception ex) when (!ex.IsFatal())
     {
       name = "Corridor";
     }
@@ -92,6 +105,17 @@ public class CorridorToSpeckleConverter(
       return null;
     }
   }
+
+  private static object? GetPropertyValue(object target, string propertyName) =>
+    target.GetType().GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public)?.GetValue(target);
+
+  private static IEnumerable<object?>? GetEnumerablePropertyValues(object target, string propertyName) =>
+    GetPropertyValue(target, propertyName) is System.Collections.IEnumerable values
+      ? values.Cast<object?>()
+      : null;
+
+  private static string? GetName(object? target) =>
+    target is null ? null : GetPropertyValue(target, "Name") as string;
 
   private static void Capture(Action set)
   {

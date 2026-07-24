@@ -20,6 +20,11 @@ public static class Connector
     }
   }
 
+  private sealed class NoopDisposable : IDisposable
+  {
+    public void Dispose() { }
+  }
+
   public static readonly string TabName = "Speckle";
   public static readonly string TabTitle = "Speckle";
 
@@ -37,6 +42,12 @@ public static class Connector
       typeof(Point).Assembly
     );
 
+#if NET48
+    // In-process .NET Framework hosts (e.g. Bentley) can throw during OpenTelemetry bootstrap
+    // because of runtime/native dependency probing in host-managed load contexts.
+    // Keep connector startup resilient by skipping OTEL setup on net48.
+    return new NoopDisposable();
+#else
     return serviceCollection.AddOpenTelemetry(
       "Connector",
       application,
@@ -71,6 +82,7 @@ public static class Connector
       null
 #endif
     );
+#endif
   }
 
   public static IDisposable AddOpenTelemetry(

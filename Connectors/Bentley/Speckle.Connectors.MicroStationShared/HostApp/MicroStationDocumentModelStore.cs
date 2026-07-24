@@ -1,7 +1,8 @@
 using Bentley.DgnPlatformNET.DgnEC;
 using Bentley.EC.Persistence.Query;
-using Bentley.ECObjects;
 using Bentley.ECObjects.Instance;
+using Bentley.ECObjects;
+using Bentley.DgnPlatformNET;
 using Bentley.ECObjects.Schema;
 using Microsoft.Extensions.Logging;
 using Speckle.Connectors.DUI.Models;
@@ -117,10 +118,35 @@ public class MicroStationDocumentModelStore : DocumentModelStore
   private static string SerializeEnvelope(Dictionary<string, string> envelope) =>
     System.Text.Json.JsonSerializer.Serialize(envelope);
 
+  private DgnECManager? TryGetEcManager()
+  {
+    try
+    {
+      return DgnECManager.Manager;
+    }
+    catch (NullReferenceException ex)
+    {
+      // Bentley host object can be unavailable during early add-in startup.
+      _logger.LogDebug(ex, "DgnECManager is not available yet");
+      return null;
+    }
+    catch (InvalidOperationException ex)
+    {
+      _logger.LogDebug(ex, "DgnECManager is not available yet");
+      return null;
+    }
+  }
+
   private string? ReadRawState(BDPN.DgnFile file)
   {
+    DgnECManager? manager = TryGetEcManager();
+    if (manager is null)
+    {
+      return null;
+    }
+
     var scope = FindInstancesScope.CreateScope(file, new FindInstancesScopeOption(DgnECHostType.All));
-    var schema = (ECSchema?)DgnECManager.Manager.LocateSchemaInScope(scope, SCHEMA_NAME, 1, 0, SchemaMatchType.Latest);
+    var schema = (ECSchema?)manager.LocateSchemaInScope(scope, SCHEMA_NAME, 1, 0, SchemaMatchType.Latest);
     if (schema is null)
     {
       return null;
@@ -129,16 +155,22 @@ public class MicroStationDocumentModelStore : DocumentModelStore
     var query = new ECQuery(schema.GetClass(CLASS_NAME));
     query.SelectClause.SelectAllProperties = true;
 
-    using DgnECInstanceCollection instances = DgnECManager.Manager.FindInstances(scope, query);
+    using DgnECInstanceCollection instances = manager.FindInstances(scope, query);
     return instances.FirstOrDefault()?[PROPERTY_NAME].StringValue;
   }
 
   private void WriteRawState(BDPN.DgnFile file, string rawState)
   {
-    DgnECManager manager = DgnECManager.Manager;
+    DgnECManager? manager = TryGetEcManager();
+    if (manager is null)
+    {
+      _logger.LogWarning("Skipping Speckle state save because DgnECManager is not available");
+      return;
+    }
+
     var scope = FindInstancesScope.CreateScope(file, new FindInstancesScopeOption(DgnECHostType.All));
 
-    IECSchema schema = RetrieveOrCreateSchema(file, scope);
+    IECSchema schema = RetrieveOrCreateSchema(manager, file, scope);
     IECClass ecClass = schema.GetClass(CLASS_NAME);
 
     // delete any existing state instances before writing the current state
@@ -158,9 +190,9 @@ public class MicroStationDocumentModelStore : DocumentModelStore
     instanceEnabler.CreateInstanceOnFile(file, ecInstance);
   }
 
-  private static IECSchema RetrieveOrCreateSchema(BDPN.DgnFile file, FindInstancesScope scope)
+  private static IECSchema RetrieveOrCreateSchema(DgnECManager manager, BDPN.DgnFile file, FindInstancesScope scope)
   {
-    IECSchema? schema = DgnECManager.Manager.LocateSchemaInScope(scope, SCHEMA_NAME, 1, 0, SchemaMatchType.Latest);
+    IECSchema? schema = manager.LocateSchemaInScope(scope, SCHEMA_NAME, 1, 0, SchemaMatchType.Latest);
     if (schema is not null)
     {
       return schema;
@@ -171,7 +203,7 @@ public class MicroStationDocumentModelStore : DocumentModelStore
     stateClass.Add(new ECProperty(PROPERTY_NAME, ECObjects.StringType));
     newSchema.AddClass(stateClass);
 
-    SchemaImportStatus status = DgnECManager.Manager.ImportSchema(newSchema, file, new ImportSchemaOptions());
+    SchemaImportStatus status = manager.ImportSchema(newSchema, file, new ImportSchemaOptions());
     if (status != SchemaImportStatus.Success)
     {
       throw new InvalidOperationException($"Failed to import Speckle EC schema into DGN file: {status}");

@@ -7,9 +7,8 @@ using Speckle.Sdk.Models;
 namespace Speckle.Converters.MicroStation.ToSpeckle.TopLevel;
 
 [NameAndRankValue(typeof(BDE.LineStringElement), NameAndRankValueAttribute.SPECKLE_DEFAULT_RANK)]
-public class LineStringElementToSpeckleConverter(
-  ITypedConverter<List<BG.DPoint3d>, SOG.Polyline> polylineConverter
-) : IToSpeckleTopLevelConverter
+public class LineStringElementToSpeckleConverter(ITypedConverter<List<BG.DPoint3d>, SOG.Polyline> polylineConverter)
+  : IToSpeckleTopLevelConverter
 {
   public Base Convert(object target) => Convert((BDE.LineStringElement)target);
 

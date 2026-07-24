@@ -119,7 +119,7 @@ public class MicroStationBasicConnectorBinding : IBasicConnectorBinding
       try
       {
         var activeModelRef = BMPN.Session.Instance.GetActiveDgnModelRef();
-        BMPN.SelectionSetManager.EmptyAll();
+        BDPN.SelectionSetManager.EmptyAll();
 
         foreach (string objectId in objectIds)
         {
@@ -127,7 +127,7 @@ public class MicroStationBasicConnectorBinding : IBasicConnectorBinding
           var (element, modelRef) = _context.FindElementWithModelRef(objectId);
           if (element is not null)
           {
-            BMPN.SelectionSetManager.AddElement(element, modelRef ?? activeModelRef);
+            BDPN.SelectionSetManager.AddElement(element, modelRef ?? activeModelRef);
           }
         }
       }

@@ -1,3 +1,4 @@
+using System.Reflection;
 using Microsoft.Extensions.Logging;
 using Speckle.Objects.Data;
 using Speckle.Sdk;
@@ -19,22 +20,30 @@ public class ProfileToHostConverter(
   ILogger<ProfileToHostConverter> logger
 )
 {
-  public void Create(DataObject profileObject, CifGM.Alignment alignment)
+  public void Create(DataObject profileObject, object alignment)
   {
-    var complex = linearElementBuilder.Build(profileObject);
-    if (complex is null)
-    {
-      return;
-    }
-
+    IDisposable? complexDisposable = null;
     try
     {
+      complexDisposable = linearElementBuilder.Build(profileObject);
+      if (complexDisposable is not CifLG.LinearComplex complex)
+      {
+        return;
+      }
+
       // (element, addToActiveProfile, makeActive) - matches the ATRL/Atom CreateProfileByProfileElement usage
-      alignment.CreateProfileByProfileElement(complex, true, true);
+      alignment
+        .GetType()
+        .GetMethod("CreateProfileByProfileElement", BindingFlags.Instance | BindingFlags.Public)
+        ?.Invoke(alignment, [complex, true, true]);
     }
     catch (Exception ex) when (!ex.IsFatal())
     {
       logger.LogDebug(ex, "Could not rebuild profile '{Name}' on alignment", profileObject.name);
+    }
+    finally
+    {
+      complexDisposable?.Dispose();
     }
   }
 }

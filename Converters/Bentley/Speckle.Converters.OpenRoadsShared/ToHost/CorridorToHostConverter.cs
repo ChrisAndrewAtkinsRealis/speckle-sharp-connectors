@@ -1,9 +1,8 @@
-using Bentley.CifNET.SDK.Edit;
+using System.Reflection;
 using Microsoft.Extensions.Logging;
 using Speckle.Converters.Common.Civil;
 using Speckle.Objects.Data;
 using Speckle.Sdk;
-using Speckle.Sdk.Models;
 
 namespace Speckle.Converters.OpenRoads.ToHost;
 
@@ -24,9 +23,19 @@ public class CorridorToHostConverter(
   ILogger<CorridorToHostConverter> logger
 )
 {
-  public string? Create(DataObject corridorObject, ConsensusConnectionEdit connection)
+  public string? Create(DataObject corridorObject, object connection)
   {
-    var geometricModel = connection.GetOrCreateGeometricModel();
+    if (
+      connection
+        .GetType()
+        .GetMethod("GetOrCreateGeometricModel", BindingFlags.Instance | BindingFlags.Public)
+        ?.Invoke(connection, null)
+      is not object geometricModel
+    )
+    {
+      logger.LogWarning("Could not get or create a civil geometric model for corridor '{Name}'", corridorObject.name);
+      return null;
+    }
 
     if (!TryGetBaseline(corridorObject, out DataObject? alignmentObject, out DataObject? profileObject))
     {
@@ -35,11 +44,11 @@ public class CorridorToHostConverter(
     }
 
     // phase 1: baseline alignment (+ profile), persisted before the corridor references it
-    connection.StartTransientMode();
+    connection.GetType().GetMethod("StartTransientMode", BindingFlags.Instance | BindingFlags.Public)?.Invoke(connection, null);
     var alignment = alignmentConverter.Create(alignmentObject!, geometricModel);
     if (alignment is null)
     {
-      connection.PersistTransients();
+      connection.GetType().GetMethod("PersistTransients", BindingFlags.Instance | BindingFlags.Public)?.Invoke(connection, null);
       return null;
     }
 
@@ -47,22 +56,23 @@ public class CorridorToHostConverter(
     {
       profileConverter.Create(profileObject, alignment);
     }
-    connection.PersistTransients();
+    connection.GetType().GetMethod("PersistTransients", BindingFlags.Instance | BindingFlags.Public)?.Invoke(connection, null);
 
     // phase 2: corridor on the alignment
-    connection.StartTransientMode();
-    CifGM.Corridor? corridor = null;
+    connection.GetType().GetMethod("StartTransientMode", BindingFlags.Instance | BindingFlags.Public)?.Invoke(connection, null);
+    object? corridor = null;
     try
     {
-      corridor = alignment.CreateCorridorByAlignment(
-        string.IsNullOrEmpty(corridorObject.name) ? "Corridor" : corridorObject.name!
+      corridor = alignment.GetType().GetMethod("CreateCorridorByAlignment", BindingFlags.Instance | BindingFlags.Public)?.Invoke(
+        alignment,
+        [string.IsNullOrEmpty(corridorObject.name) ? "Corridor" : corridorObject.name!]
       );
     }
     catch (Exception ex) when (!ex.IsFatal())
     {
       logger.LogError(ex, "Failed to create corridor '{Name}' on alignment", corridorObject.name);
     }
-    connection.PersistTransients();
+    connection.GetType().GetMethod("PersistTransients", BindingFlags.Instance | BindingFlags.Public)?.Invoke(connection, null);
 
     if (corridor is null)
     {
@@ -73,9 +83,11 @@ public class CorridorToHostConverter(
 
     try
     {
-      return corridor.Element?.ElementId.ToString();
+      return corridor.GetType().GetProperty("Element", BindingFlags.Instance | BindingFlags.Public)?.GetValue(corridor)?.GetType().GetProperty("ElementId", BindingFlags.Instance | BindingFlags.Public)?.GetValue(
+        corridor.GetType().GetProperty("Element", BindingFlags.Instance | BindingFlags.Public)?.GetValue(corridor)
+      )?.ToString();
     }
-    catch (Exception)
+    catch (Exception ex) when (!ex.IsFatal())
     {
       return null;
     }
@@ -86,7 +98,7 @@ public class CorridorToHostConverter(
   /// superelevation are the remaining CifNET corridor-edit work; the property reads below give the exact data
   /// a live-SDK implementation needs.
   /// </summary>
-  private void ApplyDefinition(CifGM.Corridor corridor, DataObject corridorObject, ConsensusConnectionEdit connection)
+  private void ApplyDefinition(object corridor, DataObject corridorObject, object connection)
   {
     // TODO(civil, live-SDK): for each templateDrop -> corridor.CreateTemplateDrop(station, template, interval);
     //                        for each pointControl / superelevation -> corresponding CifNET corridor edits.

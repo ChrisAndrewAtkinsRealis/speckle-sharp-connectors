@@ -52,7 +52,7 @@ public static class CorridorSchema
   public const string SURFACES = "surfaces";
 
   // Nested keys within a template drop entry.
-  public static class TemplateDrop
+  internal static class TemplateDrop
   {
     public const string STATION = "station";
     public const string TEMPLATE_NAME = "templateName";
@@ -60,7 +60,7 @@ public static class CorridorSchema
   }
 
   // Nested keys within a point control entry.
-  public static class PointControl
+  internal static class PointControl
   {
     public const string NAME = "name";
     public const string START_STATION = "startStation";
@@ -69,7 +69,7 @@ public static class CorridorSchema
   }
 
   // Nested keys within a superelevation / cant entry.
-  public static class Superelevation
+  internal static class SuperelevationEntry
   {
     public const string STATION = "station";
     public const string LEFT_SLOPE = "leftSlope";
