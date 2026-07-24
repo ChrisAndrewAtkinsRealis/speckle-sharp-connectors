@@ -201,12 +201,27 @@ public class MicroStationInstanceUnpacker : IInstanceUnpacker<MicroStationRootOb
 
   private static IEnumerable<BDE.Element> EnumerateChildren(BDE.Element cell)
   {
-    // GetChildren is confirmed from the v2 connector; only displayable children are convertible
+    // Walk the child tree recursively so cell-contained geometry nested in groups/containers is still sent.
+    var pending = new Stack<BDE.Element>();
     foreach (var child in cell.GetChildren())
     {
       if (child is BDE.Element element && !element.IsInvisible)
       {
-        yield return element;
+        pending.Push(element);
+      }
+    }
+
+    while (pending.Count > 0)
+    {
+      BDE.Element current = pending.Pop();
+      yield return current;
+
+      foreach (var child in current.GetChildren())
+      {
+        if (child is BDE.Element element && !element.IsInvisible)
+        {
+          pending.Push(element);
+        }
       }
     }
   }

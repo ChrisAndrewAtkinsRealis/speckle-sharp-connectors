@@ -11,6 +11,9 @@ namespace Speckle.Connectors.DUI.WebView;
 public sealed partial class DUI3ControlWebView : UserControl, IBrowserScriptExecutor, IDisposable
 {
   private readonly IServiceProvider _serviceProvider;
+  private readonly List<string> _pendingScripts = new();
+  private readonly object _pendingScriptsLock = new();
+
   public Uri DuiUrl { get; }
 
   public DUI3ControlWebView(IServiceProvider serviceProvider, IGlobalConfigResolver globalConfigResolver)
@@ -33,7 +36,8 @@ public sealed partial class DUI3ControlWebView : UserControl, IBrowserScriptExec
   {
     if (Browser == null || !Browser.IsInitialized)
     {
-      throw new InvalidOperationException("Failed to execute script, ChromiumWebBrowser is not initialized yet");
+      QueueScript(script);
+      return;
     }
 
     if (!Browser.CheckAccess())
@@ -50,7 +54,8 @@ public sealed partial class DUI3ControlWebView : UserControl, IBrowserScriptExec
   {
     if (Browser == null || !Browser.IsInitialized)
     {
-      throw new InvalidOperationException("Failed to execute script, ChromiumWebBrowser is not initialized yet");
+      QueueScript(script);
+      return;
     }
 
     //Intentionally using the dispatcher even from the main thread
@@ -75,6 +80,8 @@ public sealed partial class DUI3ControlWebView : UserControl, IBrowserScriptExec
     {
       SetupBinding(binding);
     }
+
+    FlushPendingScripts();
   }
 
   /// <remark>
@@ -87,6 +94,34 @@ public sealed partial class DUI3ControlWebView : UserControl, IBrowserScriptExec
   }
 
   public void ShowDevTools() => Browser.CoreWebView2.OpenDevToolsWindow();
+
+  private void QueueScript(string script)
+  {
+    lock (_pendingScriptsLock)
+    {
+      _pendingScripts.Add(script);
+    }
+  }
+
+  private void FlushPendingScripts()
+  {
+    List<string> scriptsToRun;
+    lock (_pendingScriptsLock)
+    {
+      if (_pendingScripts.Count == 0)
+      {
+        return;
+      }
+
+      scriptsToRun = new List<string>(_pendingScripts);
+      _pendingScripts.Clear();
+    }
+
+    foreach (string script in scriptsToRun)
+    {
+      Browser.ExecuteScriptAsync(script);
+    }
+  }
 
   //https://github.com/MicrosoftEdge/WebView2Feedback/issues/2161
   public void Dispose() => Browser.Dispatcher.Invoke(() => Browser.Dispose(), DispatcherPriority.Send);

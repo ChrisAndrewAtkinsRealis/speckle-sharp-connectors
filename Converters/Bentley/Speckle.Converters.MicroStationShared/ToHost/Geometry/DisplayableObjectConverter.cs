@@ -1,6 +1,7 @@
 using Speckle.Converters.Common;
 using Speckle.Converters.Common.Objects;
 using Speckle.Objects;
+using Speckle.Objects.Data;
 using Speckle.Sdk.Common.Exceptions;
 using Speckle.Sdk.Models;
 
@@ -35,6 +36,25 @@ public class DisplayableObjectConverter(
           break;
         case ICurve curve:
           result.Add(curveConverter.Convert(curve));
+          break;
+        case DataObject nestedDataObject:
+          foreach (var nested in nestedDataObject.displayValue)
+          {
+            switch (nested)
+            {
+              case SOG.Mesh nestedMesh:
+                result.Add(meshConverter.Convert(nestedMesh));
+                break;
+              case SOG.Point nestedPoint:
+                result.Add(pointConverter.Convert(nestedPoint));
+                break;
+              case ICurve nestedCurve:
+                result.Add(curveConverter.Convert(nestedCurve));
+                break;
+              default:
+                throw new ConversionException($"Found unsupported nested display geometry: {nested.GetType()}");
+            }
+          }
           break;
         default:
           throw new ConversionException($"Found unsupported display geometry: {displayObject.GetType()}");

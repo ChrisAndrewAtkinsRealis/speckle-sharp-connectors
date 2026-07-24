@@ -9,9 +9,9 @@ public static class ElementCurveExtensions
   /// </summary>
   public static BG.CurveVector? GetCurveVectorOrNull(this BDE.Element element)
   {
-    var eleTryp = element.ElementType;
+    var elementType = element.ElementType;
     CurveVector? query;
-    switch (eleTryp)
+    switch (elementType)
     {
       case BDPN.MSElementType.BsplineCurve:
         var bsplineElement = (BDE.BSplineCurveElement)element;
@@ -37,11 +37,21 @@ public static class ElementCurveExtensions
         var lineStringElement = (BDE.LineStringElement)element;
         query = lineStringElement.GetCurveVector();
         break;
+      case BDPN.MSElementType.ComplexString:
+        var complexStringElement = (BDE.ComplexStringElement)element;
+        query = complexStringElement.GetCurveVector();
+        break;
+      case BDPN.MSElementType.ComplexShape:
+        var complexShapeElement = (BDE.ComplexShapeElement)element;
+        query = complexShapeElement.GetCurveVector();
+        break;
+      case BDPN.MSElementType.Shape:
+        var shapeElement = (BDE.ShapeElement)element;
+        query = shapeElement.GetCurveVector();
+        break;
       default:
         return null;
     }
-    //var query = 
-    //BDPN.CurvePathQuery.GetAsCurvePathQuery(element);
 
     return query;
   }
