@@ -7,6 +7,7 @@
 # Connectors
 
 /Connectors/Autocad/* @oguzhankoral @JR-Morgan @dogukankaratas
+/Connectors/Bentley/* @CJAndrew84
 /Connectors/Civil3d/* @oguzhankoral @JR-Morgan @dogukankaratas
 /Connectors/CSi/* @bjoernsteinhagen @dogukankaratas
 /Connectors/Navisworks/* @jsdbroughton
@@ -16,6 +17,7 @@
 
 # Converters
 /Convertors/Autocad/* @oguzhankoral @JR-Morgan @dogukankaratas
+/Convertors/Bentley/* @CJAndrew84
 /Convertors/Civil3d/* @oguzhankoral @JR-Morgan @dogukankaratas
 /Convertors/CSi/* @bjoernsteinhagen @dogukankaratas
 /Convertors/Navisworks/* @jsdbroughton
