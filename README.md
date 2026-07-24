@@ -25,6 +25,7 @@ This repo is the home of our next-generation Speckle .NET projects:
   - [`Revit Connector`](https://github.com/specklesystems/speckle-sharp-connectors/tree/main/Connectors/Revit): for Autodesk Revit 2023 - 2027
   - [`CSi Connector`](https://github.com/specklesystems/speckle-sharp-connectors/tree/main/Connectors/CSi): for CSi ETABS 21 - 22
   - [`Tekla Connector`](https://github.com/specklesystems/speckle-sharp-connectors/tree/main/Connectors/Tekla): for Trimble Tekla Structures 2023 - 2025
+  - [`Bentley Connector`](https://github.com/specklesystems/speckle-sharp-connectors/tree/main/Connectors/Bentley): for Bentley MicroStation, OpenRoads Designer and OpenRail Designer 2026
 - **Speckle Converters**
   - [`AutoCAD Converter`](https://github.com/specklesystems/speckle-sharp-connectors/tree/main/Converters/Autocad)
   - [`Civil 3D Converter`](https://github.com/specklesystems/speckle-sharp-connectors/tree/main/Converters/Civil3d)
@@ -32,6 +33,7 @@ This repo is the home of our next-generation Speckle .NET projects:
   - [`Revit Converter`](https://github.com/specklesystems/speckle-sharp-connectors/tree/main/Converters/Revit)
   - [`CSi Converter`](https://github.com/specklesystems/speckle-sharp-connectors/tree/main/Converters/CSi)
   - [`Tekla Converter`](https://github.com/specklesystems/speckle-sharp-connectors/tree/main/Converters/Tekla)
+  - [`Bentley Converter`](https://github.com/specklesystems/speckle-sharp-connectors/tree/main/Converters/Bentley)
 - **Importers**
     - [`Rhino`](https://github.com/specklesystems/speckle-sharp-connectors/tree/main/Importers/Rhino): Job processor and Rhino handler for file imports.
 - **Common**
