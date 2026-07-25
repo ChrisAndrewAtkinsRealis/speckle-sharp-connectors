@@ -1,6 +1,13 @@
-# MicroStation Solid/Surface/Mesh/Parametric-Solid/Cell Conversion — Implementation Plan
+# MicroStation Solid/Surface/Mesh/Parametric-Solid/Cell Conversion & Item Type Properties — Implementation Plan
 
-Status as of 2026-07-24, for work planned the week of 2026-07-27.
+Status as of 2026-07-25, for work planned the week of 2026-07-27.
+
+Scope added 2026-07-25: Item Type property round-trip — export each element's
+Item Type property values to Speckle `properties`, and write Speckle
+`properties` back onto Item Types on receive. This was already earmarked as
+follow-up work (`Connectors/Bentley/README.md:211-212`, "item-type property
+attachment via `CustomItemHost` / `ItemTypeLibrary`"); it's now in scope for
+this sprint alongside the Solid/Surface/Mesh/Parametric-Solid/Cell work.
 
 ## Decision
 
@@ -55,6 +62,29 @@ as the last-resort catch-all for genuinely unsupported element types.
   Solid3dToSpeckleConverter.cs` — typed `SOG.SolidX` with a lossless raw
   encoding, a display mesh, and computed volume/area, not a metadata dump.
 - No test project exists yet for `Speckle.Converters.MicroStationShared`.
+- Item Types (verified against current repo state):
+  - No Item Type code exists yet. It's a documented TODO only
+    (`Connectors/Bentley/README.md:211-212`).
+  - What exists today is generic EC (Engineering Content) property reading,
+    not Item Types specifically: `Speckle.Converters.MicroStationShared/
+    ToSpeckle/Properties/PropertiesExtractor.cs:15-97` calls
+    `DgnECManager.Manager.GetElementProperties()` and walks
+    `IDgnECInstance`/`IECPropertyValue` into a flat
+    `Dictionary<string, object?>`, grouped by EC class display label. It does
+    not distinguish Item Type instances from other EC classes on the element,
+    so Item Type values, if present, are currently mixed in undifferentiated
+    with everything else EC exposes.
+  - `MicroStationRootToSpeckleConverter.cs:44-59` is where
+    `PropertiesExtractor` output gets merged into `DataObject.properties` for
+    every element, after the type-specific converter runs.
+  - There is no reverse path today. The only existing "write host metadata
+    back onto an element" pattern is level assignment:
+    `MicroStationLevelBaker.cs:70-83`
+    (`Connectors/Bentley/Speckle.Connectors.MicroStationShared/HostApp/`)
+    uses `new ElementPropertiesSetter().SetLevel(levelId).Apply(element)`
+    because `Element.LevelId` is getter-only — the same shape (a dedicated
+    `*Setter`/`*Baker` invoked during the host object build) is the template
+    for an Item Type writeback.
 
 ## Plan
 
@@ -117,6 +147,38 @@ as the last-resort catch-all for genuinely unsupported element types.
   build/test needs Windows (MicroStation SDK is Windows-only) — plan Windows
   time for final verification, not just the Linux dev loop.
 
+### 6. Item Type properties: export to Speckle, import from Speckle
+
+- **Spike**: confirm how `ItemTypeLibrary`/`CustomItemHost` expose Item Type
+  definitions and instance values on a `DgnElement` (vs. the generic EC
+  classes `PropertiesExtractor` already reads), and whether Item Type
+  instances are already showing up — undifferentiated — inside today's
+  `PropertiesExtractor` output or are missed entirely. Confirm on day 1;
+  it determines whether step 2 below is "re-tag existing data" or "add a new
+  read path".
+- **ToSpeckle (export)**: add a dedicated Item Type read path — either a new
+  `ItemTypePropertiesExtractor` or an extension to
+  `PropertiesExtractor.cs:15-97` — that reads each element's `CustomItemHost`
+  Item Type instances and writes them into `DataObject.properties` under a
+  distinct, namespaced key (e.g. `properties["Item Types"]["<Item Type
+  name>"]`) rather than flattened in with generic EC data, so downstream
+  consumers can tell Item Type values apart from other properties. Wire it
+  into `MicroStationRootToSpeckleConverter.cs:44-59` alongside the existing
+  `PropertiesExtractor` call.
+- **ToHost (import)**: add a new baker, e.g. `MicroStationItemTypeBaker`,
+  following the `MicroStationLevelBaker.cs:70-83` /
+  `ElementPropertiesSetter` template — read the namespaced Item Type bag back
+  out of the received `Base`'s `properties`, resolve or create the matching
+  `ItemTypeLibrary` Item Type definition on the target element via
+  `CustomItemHost`, and set each property value. Decide and document the
+  behavior when an Item Type named in the incoming data doesn't exist in the
+  target file (create it vs. skip with a warning — don't silently drop data).
+  Invoke it from `MicroStationInstanceBaker.cs` alongside the level baker.
+- **Tests**: cover the new extractor and baker in the
+  `Speckle.Converters.MicroStationShared.Tests` project added in step 5,
+  including the round-trip (send an element with Item Type values, receive
+  it, confirm the same Item Type/values land on the rebuilt element).
+
 ## Division of labor
 
 | Task | Owner |
@@ -127,6 +189,10 @@ as the last-resort catch-all for genuinely unsupported element types.
 | Typed ToHost converters | You (kernel calls) + Copilot (wiring) |
 | Fallback converter scope narrowing | You (small, deliberate diff) |
 | Unit tests | You (1 template) → Copilot (rest) |
+| Item Type API spike (`ItemTypeLibrary`/`CustomItemHost`) | You |
+| Item Type export (ToSpeckle extractor) | Copilot draft → you review |
+| Item Type import (`MicroStationItemTypeBaker`) | You (API calls) + Copilot (wiring) |
+| Item Type round-trip tests | You (1 template) → Copilot (rest) |
 
 ## Risk
 
@@ -134,3 +200,13 @@ If MicroStation has no accessible brep/kernel serialization API, lossless
 round-trip for Solid/Surface isn't achievable, and the honest target is
 mesh-only `SOG.Mesh`/`SOG.Solid` with a tessellated `displayValue`. Decide
 this on day 1 of the spike rather than discovering it mid-week.
+
+Item Types add a second, independent risk: `CustomItemHost`/`ItemTypeLibrary`
+is unverified territory (no code in this repo touches it yet, per the README
+TODO). Creating Item Type definitions that don't already exist in the
+receiving file may require schema/library setup beyond a per-property API
+call. If definition creation on receive turns out to be unsupported or unsafe
+to do implicitly, the honest fallback is import-only-if-already-defined
+(skip + warn otherwise) rather than silently failing or corrupting the file's
+Item Type libraries — decide and document this during the spike, same as the
+brep/kernel risk above.
