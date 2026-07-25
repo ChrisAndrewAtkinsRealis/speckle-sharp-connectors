@@ -1,6 +1,17 @@
-# MicroStation Solid/Surface/Mesh/Parametric-Solid/Cell Conversion — Implementation Plan
+# MicroStation Solid/Surface/Mesh/Parametric-Solid/Cell Conversion & Item Type Properties — Implementation Plan
 
-Status as of 2026-07-24, for work planned the week of 2026-07-27.
+Status as of 2026-07-25, for work planned the week of 2026-07-27.
+
+Scope added 2026-07-25: Item Type property round-trip — export each element's
+Item Type property values to Speckle `properties`, and write Speckle
+`properties` back onto Item Types on receive. This was already earmarked as
+follow-up work (`Connectors/Bentley/README.md:211-212`, "item-type property
+attachment via `CustomItemHost` / `ItemTypeLibrary`"); it's now in scope for
+this sprint alongside the Solid/Surface/Mesh/Parametric-Solid/Cell work.
+
+Also added 2026-07-25: `ExtendedElementsElement`-classed objects currently
+have no conversion path that reliably succeeds — see the "Current state" and
+plan §7 below.
 
 ## Decision
 
@@ -55,6 +66,59 @@ as the last-resort catch-all for genuinely unsupported element types.
   Solid3dToSpeckleConverter.cs` — typed `SOG.SolidX` with a lossless raw
   encoding, a display mesh, and computed volume/area, not a metadata dump.
 - No test project exists yet for `Speckle.Converters.MicroStationShared`.
+- Item Types (verified against current repo state):
+  - No Item Type code exists yet. It's a documented TODO only
+    (`Connectors/Bentley/README.md:211-212`).
+  - What exists today is generic EC (Engineering Content) property reading,
+    not Item Types specifically: `Speckle.Converters.MicroStationShared/
+    ToSpeckle/Properties/PropertiesExtractor.cs:15-97` calls
+    `DgnECManager.Manager.GetElementProperties()` and walks
+    `IDgnECInstance`/`IECPropertyValue` into a flat
+    `Dictionary<string, object?>`, grouped by EC class display label. It does
+    not distinguish Item Type instances from other EC classes on the element,
+    so Item Type values, if present, are currently mixed in undifferentiated
+    with everything else EC exposes.
+  - `MicroStationRootToSpeckleConverter.cs:44-59` is where
+    `PropertiesExtractor` output gets merged into `DataObject.properties` for
+    every element, after the type-specific converter runs.
+  - There is no reverse path today. The only existing "write host metadata
+    back onto an element" pattern is level assignment:
+    `MicroStationLevelBaker.cs:70-83`
+    (`Connectors/Bentley/Speckle.Connectors.MicroStationShared/HostApp/`)
+    uses `new ElementPropertiesSetter().SetLevel(levelId).Apply(element)`
+    because `Element.LevelId` is getter-only — the same shape (a dedicated
+    `*Setter`/`*Baker` invoked during the host object build) is the template
+    for an Item Type writeback.
+- `ExtendedElementsElement` (verified against current repo state):
+  - No dedicated type-specific converter exists. The only related code is a
+    metadata-tagging helper, `IsExtendedElementType(string elementTypeName)`
+    in `ElementToSpeckleFallbackConverter.cs:172-180`, which string-matches
+    `target.ElementType.ToString()` against `MSElementType` names
+    (`DgnStoreHeader`, `GroupData`, `Type4`, `Type44`, `DigSetData`,
+    `TableEntry`, `View`, `ViewGroup`) and only sets
+    `properties["isExtendedElementType"]` — it doesn't change how the element
+    is converted.
+  - Dispatch isn't the problem: `ConverterManager.cs:13-39` walks .NET base
+    types, so anything under `BDE.Element` without its own registered
+    converter already reaches `ElementToSpeckleFallbackConverter` (registered
+    on `typeof(BDE.Element)`) automatically.
+  - The actual gap is `ElementToSpeckleFallbackConverter.cs:67-73`: if no
+    curve/mesh display geometry is extracted, it throws a
+    `ConversionException` instead of returning a properties-only
+    `DataObject`. Extended element types are typically non-graphical
+    (schema/data-carrying opcodes, not drawable geometry), so they are the
+    elements most likely to hit exactly this path and **fail conversion
+    outright**. That contradicts this repo's own guidance (`CLAUDE.md`:
+    "Support unsupported host elements with a fallback `DataObject`
+    converter that preserves display geometry and metadata rather than
+    silently dropping them").
+  - Bentley SDK assemblies aren't available in this Linux dev environment —
+    `Converters/Bentley/Speckle.Converters.MicroStation2026/
+    Speckle.Converters.MicroStation2026.csproj:17-50` resolves them via a
+    Windows-only `HintPath` into a local MicroStation 2026 install. Confirming
+    `ExtendedElementsElement`'s concrete managed shape and EC/property
+    surface needs a Windows box with MicroStation 2026 installed — don't
+    guess it from memory.
 
 ## Plan
 
@@ -117,6 +181,66 @@ as the last-resort catch-all for genuinely unsupported element types.
   build/test needs Windows (MicroStation SDK is Windows-only) — plan Windows
   time for final verification, not just the Linux dev loop.
 
+### 6. Item Type properties: export to Speckle, import from Speckle
+
+- **Spike**: confirm how `ItemTypeLibrary`/`CustomItemHost` expose Item Type
+  definitions and instance values on a `DgnElement` (vs. the generic EC
+  classes `PropertiesExtractor` already reads), and whether Item Type
+  instances are already showing up — undifferentiated — inside today's
+  `PropertiesExtractor` output or are missed entirely. Confirm on day 1;
+  it determines whether step 2 below is "re-tag existing data" or "add a new
+  read path".
+- **ToSpeckle (export)**: add a dedicated Item Type read path — either a new
+  `ItemTypePropertiesExtractor` or an extension to
+  `PropertiesExtractor.cs:15-97` — that reads each element's `CustomItemHost`
+  Item Type instances and writes them into `DataObject.properties` under a
+  distinct, namespaced key (e.g. `properties["Item Types"]["<Item Type
+  name>"]`) rather than flattened in with generic EC data, so downstream
+  consumers can tell Item Type values apart from other properties. Wire it
+  into `MicroStationRootToSpeckleConverter.cs:44-59` alongside the existing
+  `PropertiesExtractor` call.
+- **ToHost (import)**: add a new baker, e.g. `MicroStationItemTypeBaker`,
+  following the `MicroStationLevelBaker.cs:70-83` /
+  `ElementPropertiesSetter` template — read the namespaced Item Type bag back
+  out of the received `Base`'s `properties`, resolve or create the matching
+  `ItemTypeLibrary` Item Type definition on the target element via
+  `CustomItemHost`, and set each property value. Decide and document the
+  behavior when an Item Type named in the incoming data doesn't exist in the
+  target file (create it vs. skip with a warning — don't silently drop data).
+  Invoke it from `MicroStationInstanceBaker.cs` alongside the level baker.
+- **Tests**: cover the new extractor and baker in the
+  `Speckle.Converters.MicroStationShared.Tests` project added in step 5,
+  including the round-trip (send an element with Item Type values, receive
+  it, confirm the same Item Type/values land on the rebuilt element).
+
+### 7. ExtendedElementsElement conversion
+
+- **Spike (Windows, SDK required)**: confirm the concrete managed type(s)
+  behind "extended element" objects (`Bentley.DgnPlatformNET.Elements.
+  ExtendedElementsElement` or whichever `MSElementType` values apply — start
+  from the `IsExtendedElementType` list in
+  `ElementToSpeckleFallbackConverter.cs:172-180`), and confirm whether they
+  carry EC/Item Type data (relevant to §6 above) despite having no display
+  geometry.
+- Fix `ElementToSpeckleFallbackConverter.Convert` (`:25-93`) so extended/
+  non-graphical element types don't throw when `displayValue.Count == 0` —
+  for these, empty display geometry is expected, not a failure. Return a
+  properties-only `DataObject` (empty `displayValue`) instead of raising
+  `ConversionException`; keep the exception for element types that should
+  have geometry but genuinely failed extraction.
+- Decide whether that fix lives inside the shared fallback converter
+  (cheapest, and correct if extended elements stay purely metadata-only) or
+  becomes a dedicated `ExtendedElementsElementToSpeckleConverter` with its
+  own `[NameAndRankValue]` registration, if the concrete type gets confirmed
+  and its handling needs to diverge further (e.g. once it also extracts Item
+  Type data from §6).
+- ToHost: explicitly decide whether extended elements round-trip back into
+  the host file on receive, or are send-only/reference metadata — confirm
+  this during the spike rather than leaving it an unstated assumption.
+- **Tests**: add to `Speckle.Converters.MicroStationShared.Tests` — a
+  non-graphical extended element must produce a `DataObject` with properties
+  and empty `displayValue`, not throw.
+
 ## Division of labor
 
 | Task | Owner |
@@ -127,6 +251,13 @@ as the last-resort catch-all for genuinely unsupported element types.
 | Typed ToHost converters | You (kernel calls) + Copilot (wiring) |
 | Fallback converter scope narrowing | You (small, deliberate diff) |
 | Unit tests | You (1 template) → Copilot (rest) |
+| Item Type API spike (`ItemTypeLibrary`/`CustomItemHost`) | You |
+| Item Type export (ToSpeckle extractor) | Copilot draft → you review |
+| Item Type import (`MicroStationItemTypeBaker`) | You (API calls) + Copilot (wiring) |
+| Item Type round-trip tests | You (1 template) → Copilot (rest) |
+| ExtendedElementsElement spike (Windows/SDK) | You |
+| Fallback-converter empty-`displayValue` fix | You (small, deliberate diff) |
+| ExtendedElementsElement tests | Copilot draft → you review |
 
 ## Risk
 
@@ -134,3 +265,19 @@ If MicroStation has no accessible brep/kernel serialization API, lossless
 round-trip for Solid/Surface isn't achievable, and the honest target is
 mesh-only `SOG.Mesh`/`SOG.Solid` with a tessellated `displayValue`. Decide
 this on day 1 of the spike rather than discovering it mid-week.
+
+Item Types add a second, independent risk: `CustomItemHost`/`ItemTypeLibrary`
+is unverified territory (no code in this repo touches it yet, per the README
+TODO). Creating Item Type definitions that don't already exist in the
+receiving file may require schema/library setup beyond a per-property API
+call. If definition creation on receive turns out to be unsupported or unsafe
+to do implicitly, the honest fallback is import-only-if-already-defined
+(skip + warn otherwise) rather than silently failing or corrupting the file's
+Item Type libraries — decide and document this during the spike, same as the
+brep/kernel risk above.
+
+`ExtendedElementsElement` adds a smaller, contained risk: the fix is scoped
+to `ElementToSpeckleFallbackConverter`'s empty-`displayValue` branch, but its
+spike needs a Windows machine with MicroStation 2026 installed to inspect the
+real SDK type — this can't be verified from the Linux dev loop. Confirm the
+concrete type/behavior before writing the fix, not after.
