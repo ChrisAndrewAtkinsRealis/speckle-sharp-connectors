@@ -9,6 +9,10 @@ follow-up work (`Connectors/Bentley/README.md:211-212`, "item-type property
 attachment via `CustomItemHost` / `ItemTypeLibrary`"); it's now in scope for
 this sprint alongside the Solid/Surface/Mesh/Parametric-Solid/Cell work.
 
+Also added 2026-07-25: `ExtendedElementsElement`-classed objects currently
+have no conversion path that reliably succeeds — see the "Current state" and
+plan §7 below.
+
 ## Decision
 
 Commit `1d3adfb` ("feat(microstation): robust fallback for unsupported elements")
@@ -85,6 +89,36 @@ as the last-resort catch-all for genuinely unsupported element types.
     because `Element.LevelId` is getter-only — the same shape (a dedicated
     `*Setter`/`*Baker` invoked during the host object build) is the template
     for an Item Type writeback.
+- `ExtendedElementsElement` (verified against current repo state):
+  - No dedicated type-specific converter exists. The only related code is a
+    metadata-tagging helper, `IsExtendedElementType(string elementTypeName)`
+    in `ElementToSpeckleFallbackConverter.cs:172-180`, which string-matches
+    `target.ElementType.ToString()` against `MSElementType` names
+    (`DgnStoreHeader`, `GroupData`, `Type4`, `Type44`, `DigSetData`,
+    `TableEntry`, `View`, `ViewGroup`) and only sets
+    `properties["isExtendedElementType"]` — it doesn't change how the element
+    is converted.
+  - Dispatch isn't the problem: `ConverterManager.cs:13-39` walks .NET base
+    types, so anything under `BDE.Element` without its own registered
+    converter already reaches `ElementToSpeckleFallbackConverter` (registered
+    on `typeof(BDE.Element)`) automatically.
+  - The actual gap is `ElementToSpeckleFallbackConverter.cs:67-73`: if no
+    curve/mesh display geometry is extracted, it throws a
+    `ConversionException` instead of returning a properties-only
+    `DataObject`. Extended element types are typically non-graphical
+    (schema/data-carrying opcodes, not drawable geometry), so they are the
+    elements most likely to hit exactly this path and **fail conversion
+    outright**. That contradicts this repo's own guidance (`CLAUDE.md`:
+    "Support unsupported host elements with a fallback `DataObject`
+    converter that preserves display geometry and metadata rather than
+    silently dropping them").
+  - Bentley SDK assemblies aren't available in this Linux dev environment —
+    `Converters/Bentley/Speckle.Converters.MicroStation2026/
+    Speckle.Converters.MicroStation2026.csproj:17-50` resolves them via a
+    Windows-only `HintPath` into a local MicroStation 2026 install. Confirming
+    `ExtendedElementsElement`'s concrete managed shape and EC/property
+    surface needs a Windows box with MicroStation 2026 installed — don't
+    guess it from memory.
 
 ## Plan
 
@@ -179,6 +213,34 @@ as the last-resort catch-all for genuinely unsupported element types.
   including the round-trip (send an element with Item Type values, receive
   it, confirm the same Item Type/values land on the rebuilt element).
 
+### 7. ExtendedElementsElement conversion
+
+- **Spike (Windows, SDK required)**: confirm the concrete managed type(s)
+  behind "extended element" objects (`Bentley.DgnPlatformNET.Elements.
+  ExtendedElementsElement` or whichever `MSElementType` values apply — start
+  from the `IsExtendedElementType` list in
+  `ElementToSpeckleFallbackConverter.cs:172-180`), and confirm whether they
+  carry EC/Item Type data (relevant to §6 above) despite having no display
+  geometry.
+- Fix `ElementToSpeckleFallbackConverter.Convert` (`:25-93`) so extended/
+  non-graphical element types don't throw when `displayValue.Count == 0` —
+  for these, empty display geometry is expected, not a failure. Return a
+  properties-only `DataObject` (empty `displayValue`) instead of raising
+  `ConversionException`; keep the exception for element types that should
+  have geometry but genuinely failed extraction.
+- Decide whether that fix lives inside the shared fallback converter
+  (cheapest, and correct if extended elements stay purely metadata-only) or
+  becomes a dedicated `ExtendedElementsElementToSpeckleConverter` with its
+  own `[NameAndRankValue]` registration, if the concrete type gets confirmed
+  and its handling needs to diverge further (e.g. once it also extracts Item
+  Type data from §6).
+- ToHost: explicitly decide whether extended elements round-trip back into
+  the host file on receive, or are send-only/reference metadata — confirm
+  this during the spike rather than leaving it an unstated assumption.
+- **Tests**: add to `Speckle.Converters.MicroStationShared.Tests` — a
+  non-graphical extended element must produce a `DataObject` with properties
+  and empty `displayValue`, not throw.
+
 ## Division of labor
 
 | Task | Owner |
@@ -193,6 +255,9 @@ as the last-resort catch-all for genuinely unsupported element types.
 | Item Type export (ToSpeckle extractor) | Copilot draft → you review |
 | Item Type import (`MicroStationItemTypeBaker`) | You (API calls) + Copilot (wiring) |
 | Item Type round-trip tests | You (1 template) → Copilot (rest) |
+| ExtendedElementsElement spike (Windows/SDK) | You |
+| Fallback-converter empty-`displayValue` fix | You (small, deliberate diff) |
+| ExtendedElementsElement tests | Copilot draft → you review |
 
 ## Risk
 
@@ -210,3 +275,9 @@ to do implicitly, the honest fallback is import-only-if-already-defined
 (skip + warn otherwise) rather than silently failing or corrupting the file's
 Item Type libraries — decide and document this during the spike, same as the
 brep/kernel risk above.
+
+`ExtendedElementsElement` adds a smaller, contained risk: the fix is scoped
+to `ElementToSpeckleFallbackConverter`'s empty-`displayValue` branch, but its
+spike needs a Windows machine with MicroStation 2026 installed to inspect the
+real SDK type — this can't be verified from the Linux dev loop. Confirm the
+concrete type/behavior before writing the fix, not after.
