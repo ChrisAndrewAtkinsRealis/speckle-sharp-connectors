@@ -36,8 +36,49 @@ public class FallbackConverterTests
     Assert.That(dataObject.properties["conversionKind"], Is.EqualTo("fallback"));
   }
 
+  [Test]
+  public void FallbackConverter_ReturnsBoundingBoxMesh_WhenOnlyElementRangeIsAvailable()
+  {
+    var converter = new ElementToSpeckleFallbackConverter(
+      new FakeMeshConverter(),
+      new FakeCurveVectorConverter(),
+      new FakeSettingsStore(),
+      new FakeLogger<ElementToSpeckleFallbackConverter>()
+    );
+
+    var result = converter.Convert(new FakeElementWithRange());
+
+    // no curve/solid/facet/child geometry was extractable, so this is the last-resort
+    // bounding-box mesh (Converters/Bentley/PLAN.md §7) rather than the element's real shape.
+    Assert.That(result, Is.TypeOf<SOG.Mesh>());
+    var mesh = (SOG.Mesh)result;
+    Assert.That(mesh.vertices, Has.Count.EqualTo(24));
+    Assert.That(mesh.vertices[0], Is.EqualTo(0));
+    Assert.That(mesh.vertices[18], Is.EqualTo(1));
+    Assert.That(mesh.vertices[19], Is.EqualTo(2));
+    Assert.That(mesh.vertices[20], Is.EqualTo(3));
+  }
+
   private sealed class FakeElement : BDE.Element
   {
+  }
+
+  private sealed class FakeElementWithRange : BDE.Element
+  {
+    public FakeRange GetTestElementRange() => new() { Low = new FakePoint(0, 0, 0), High = new FakePoint(1, 2, 3) };
+  }
+
+  private sealed class FakeRange
+  {
+    public FakePoint Low { get; set; }
+    public FakePoint High { get; set; }
+  }
+
+  private readonly struct FakePoint(double x, double y, double z)
+  {
+    public double X { get; } = x;
+    public double Y { get; } = y;
+    public double Z { get; } = z;
   }
 
   private sealed class FakeMeshConverter : ITypedConverter<BG.PolyfaceHeader, SOG.Mesh>
