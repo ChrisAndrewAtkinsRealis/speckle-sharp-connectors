@@ -1,131 +1,57 @@
-using System.Reflection;
+using Bentley.DgnPlatformNET.DgnEC;
+using Bentley.DgnPlatformNET.Elements;
 using Speckle.Sdk;
 
 namespace Speckle.Converters.MicroStation.ToSpeckle.Properties;
 
 /// <summary>
-/// Best-effort extraction of Item Type-like data from a MicroStation element.
-/// The Bentley API surface is host-version dependent, so this is intentionally defensive:
-/// it uses reflection to look for common Item Type access patterns and never fails the conversion.
+/// Reads Item Type instances attached to a MicroStation element via <see cref="CustomItemHost"/>. This is
+/// distinct from <see cref="PropertiesExtractor"/>, which reads every EC class on the element undifferentiated -
+/// <c>CustomItemHost.CustomItems</c> returns only the Item Type instances, so Item Type values land in
+/// their own namespaced <c>properties["Item Types"]</c> bag instead of being mixed in with generic EC data.
 /// </summary>
+/// <remarks>
+/// Each Item Type's owning library name is captured alongside its values (under the <c>"library"</c> key) because
+/// the receive-side <c>MicroStationItemTypeBaker</c> needs both the library and Item Type name to resolve the
+/// same Item Type on receive via <c>CustomItemHost.GetCustomItem(string, string)</c>.
+/// </remarks>
 public class ItemTypePropertiesExtractor
 {
   public Dictionary<string, object?> GetProperties(BDE.Element element)
   {
-    var properties = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+    var itemTypes = new Dictionary<string, object?>();
 
     if (element is null)
     {
-      return properties;
+      return itemTypes;
     }
 
     try
     {
-      CollectItemTypeData(element, properties);
+      var host = new CustomItemHost(element, false);
+      foreach (IDgnECInstance instance in host.CustomItems)
+      {
+        Dictionary<string, object?> values = EcPropertyValueReader.ReadValues(instance);
+        if (values.Count == 0)
+        {
+          continue;
+        }
+
+        string itemTypeName = instance.ClassDefinition.DisplayLabel ?? instance.ClassDefinition.Name;
+        string libraryName = instance.ClassDefinition.Schema.Name;
+
+        itemTypes[itemTypeName] = new Dictionary<string, object?>
+        {
+          ["library"] = libraryName,
+          ["properties"] = values,
+        };
+      }
     }
     catch (Exception ex) when (!ex.IsFatal())
     {
       // Item Type data is optional and should never break conversion.
     }
 
-    return properties;
+    return itemTypes;
   }
-
-  private static void CollectItemTypeData(object? source, IDictionary<string, object?> target)
-  {
-    if (source is null)
-    {
-      return;
-    }
-
-    var type = source.GetType();
-
-    foreach (string propertyName in s_itemTypePropertyNames)
-    {
-      PropertyInfo? property = type.GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-      if (property is null)
-      {
-        continue;
-      }
-
-      object? value = property.GetValue(source);
-      if (value is null)
-      {
-        continue;
-      }
-
-      if (value is string stringValue && string.IsNullOrWhiteSpace(stringValue))
-      {
-        continue;
-      }
-
-      if (value is IDictionary<string, object?> nestedDictionary)
-      {
-        foreach (var kvp in nestedDictionary)
-        {
-          if (!string.IsNullOrWhiteSpace(kvp.Key) && kvp.Value is not null)
-          {
-            target[$"{propertyName}.{kvp.Key}"] = kvp.Value;
-          }
-        }
-        continue;
-      }
-
-      if (value is IEnumerable<KeyValuePair<string, object?>> enumerableKvp)
-      {
-        foreach (var kvp in enumerableKvp)
-        {
-          if (!string.IsNullOrWhiteSpace(kvp.Key) && kvp.Value is not null)
-          {
-            target[$"{propertyName}.{kvp.Key}"] = kvp.Value;
-          }
-        }
-        continue;
-      }
-
-      if (value is IEnumerable<object?> enumerable && value is not string)
-      {
-        target[propertyName] = enumerable.Cast<object?>().Where(v => v is not null).Select(v => v).ToList();
-        continue;
-      }
-
-      target[propertyName] = value;
-    }
-
-    foreach (string propertyName in s_nestedItemTypePropertyNames)
-    {
-      PropertyInfo? property = type.GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-      if (property is null)
-      {
-        continue;
-      }
-
-      object? value = property.GetValue(source);
-      if (value is not null)
-      {
-        CollectItemTypeData(value, target);
-      }
-    }
-  }
-
-  private static readonly string[] s_itemTypePropertyNames =
-  [
-    "ItemType",
-    "ItemTypeName",
-    "ItemTypeId",
-    "ItemTypeProperties",
-    "CustomItemHost",
-    "ItemTypeDefinition",
-    "ItemTypes",
-    "ItemTypeLibrary"
-  ];
-
-  private static readonly string[] s_nestedItemTypePropertyNames =
-  [
-    "Definition",
-    "DefinitionObject",
-    "PropertyBag",
-    "Properties",
-    "Value"
-  ];
 }

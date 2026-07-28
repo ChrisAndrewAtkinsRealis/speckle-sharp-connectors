@@ -33,6 +33,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)ToHost\Geometry\PolycurveToHostConverter.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToHost\Geometry\PolylineToHostConverter.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToHost\Geometry\SolidXToHostConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ToSpeckle\Properties\EcPropertyValueReader.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToSpeckle\Properties\PropertiesExtractor.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToSpeckle\Properties\ItemTypePropertiesExtractor.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ToSpeckle\Raw\CurveVectorToSpeckleRawConverter.cs" />

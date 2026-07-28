@@ -15,9 +15,9 @@ plan §7 below.
 
 ## Progress Tracker
 
-**Last updated**: 2026-07-28, re-verified against the actual code on
-`claude/bentley-multi-object-transfer-nvgmh2` (not just prior notes in this
-file). Most of §1-§2, §6 and §7 landed in commit `6757fbc` ("20260728", Chris
+**Last updated**: 2026-07-28 (second pass, this session), replacing the
+reflection-based §6 Item Type read/write with the real `CustomItemHost` API.
+Most of §1-§2, §6 and §7 landed in commit `6757fbc` ("20260728", Chris
 Andrew, 2026-07-28) without this file being updated — the "Current state"
 section above and the plan below are now stale in places; this tracker is the
 up-to-date source of truth. `Connectors/Bentley/report.json` and
@@ -27,7 +27,7 @@ against a real file, even though the encoding *decision* itself (mesh-only,
 no lossless kernel encoding — see §1 row below) isn't written down anywhere
 in prose.
 
-**Overall: ~65%** [██████░░░░]
+**Overall: ~70%** [███████░░░]
 
 | # | Item | Status | Notes |
 |---|---|---|---|
@@ -41,9 +41,9 @@ in prose.
 | 3 | ToHost mirror: typed `SOG.Surface → BDE.SurfaceElement` converter | ❌ Not started | No connector in this repo has a `SOG.Surface` ToHost converter yet (checked: zero matches for `typeof(SOG.Surface)` repo-wide), so there's no established pattern to follow and native B-spline surface reconstruction is real, unverified Bentley SDK territory. Left alone rather than guessed at — needs the Windows spike. Received Surfaces currently have no receive path at all (no fallback either, since real `SOG.Surface` isn't a `DisplayableObject`). |
 | 4 | Cell integration | ✅ Done (see 1b) | |
 | 5 | Tests | 🟡 Started, partial | `Speckle.Converters.MicroStationShared.Tests` project exists (NUnit, `net48`) with one test (`FallbackConverterTests`, covers §7's empty-`displayValue` fix only). It references `Speckle.Converters.MicroStation2026.csproj` directly, so like the rest of this connector it's Windows-SDK-only and can't be built/run from this Linux environment. No coverage yet for the Solid/Surface/Parametric converters, the new `SolidXToHostConverter`, or the narrowed fallback host converter. |
-| 6 | Item Type properties: export | 🟡 Wired, functionally unverified | `ItemTypePropertiesExtractor` exists and is wired into `MicroStationRootToSpeckleConverter` (writes `properties["Item Types"]`), matching the plan's key naming. However it works by reflecting for property names like `"ItemType"`/`"CustomItemHost"` directly on the element — the real Bentley API exposes Item Types via the static `CustomItemHost.FromElement(element)` factory, not an element property, so this is very likely a silent no-op against a real file. Explicitly scoped as "best-effort" in its own doc comment. Needs the §6 spike to actually read `CustomItemHost`/`ItemTypeLibrary`. |
-| 6 | Item Type properties: import | 🟡 Wired, functionally unverified | `MicroStationItemTypeBaker.ApplyItemTypes` is wired into `MicroStationHostObjectBuilder.AddToModel` alongside the level/colour bakers. Same caveat as export: it reflects for a settable `"ItemType"` property on the element, which likely doesn't exist on the real API (writeback needs the `CustomItemHost` EC-instance API). |
-| 6 | Item Type round-trip tests | ❌ Not started | Blocked on the export/import logic actually working against the real API first. |
+| 6 | Item Type properties: export | 🟡 Rewritten to real API, build-unverified | `ItemTypePropertiesExtractor` no longer reflects for guessed property names. It now constructs `new CustomItemHost(element, false)` and reads `CustomItemHost.CustomItems` (an `IList<IDgnECInstance>`, per the Bentley "Item Types CRUD Operations" managed-API sample) — this differentiates Item Type instances from the generic EC data `PropertiesExtractor` reads, which was the open question from the §6 spike. Each Item Type's values (extracted via the new shared `EcPropertyValueReader`, factored out of `PropertiesExtractor`'s previously-duplicated logic) are written to `properties["Item Types"][<Item Type name>] = { "library": <owning schema/library name>, "properties": {...} }` — the library name is carried alongside the values because the baker needs it to resolve the same Item Type on receive. Still unverified: exact `CustomItemHost` namespace/constructor semantics and whether `ClassDefinition.Schema.Name` is really the library name — no Windows/MicroStation SDK available in this environment to compile-check. |
+| 6 | Item Type properties: import | 🟡 Rewritten to real API, build-unverified | `MicroStationItemTypeBaker.ApplyItemTypes` no longer reflects for a settable `"ItemType"` element property. It now reads `DataObject.properties["Item Types"]`, resolves each Item Type via `CustomItemHost.GetCustomItem(library, itemTypeName)`, and writes values with `IDgnECInstance.SetString` + `WriteChanges()` (per the same Bentley CRUD sample: `ecInstance.SetString("Type", "Modified Sofa")`). **Decision** (per the Risk section below): an incoming Item Type with no match in the target file is skipped and logged, not auto-created — creating `ItemTypeLibrary`/`ItemType` definitions generically was judged too risky to guess without SDK verification, so this is the documented "import-only-if-already-defined" fallback the plan called for. The parsing of the `{"library", "properties"}` entry shape was pulled into a pure `MicroStationItemTypeBaker.TryParseItemTypeEntry` so it's unit-testable without the Bentley SDK (see tests below); the `CustomItemHost`/`IDgnECInstance` calls themselves are still unverified against a real file. |
+| 6 | Item Type round-trip tests | 🟡 Partial | Added `Speckle.Connectors.MicroStationShared.Tests` (new test project, mirrors the existing Converters test project: NUnit4, net48, references `Speckle.Connectors.MicroStation2026.csproj`) with unit tests for `MicroStationItemTypeBaker.TryParseItemTypeEntry` (well-formed entry, missing/blank library, missing properties, non-dictionary entry). This covers the wire-contract between extractor and baker but not the `CustomItemHost` calls themselves — those need Moq mocks of Bentley EC interfaces (`IDgnECInstance`/`IECClass`/`IECPropertyValue`) whose exact member shapes aren't confirmed, or a live round-trip against a real DGN file. Still blocked on Windows verification for full coverage. |
 | 7 | ExtendedElementsElement: don't throw on empty displayValue | ✅ Done | `ElementToSpeckleFallbackConverter.Convert` returns a properties-only `DataObject` when no display geometry is found instead of throwing `ConversionException`. Also gained an additional bounding-box-mesh fallback (`TryAddRangeFallbackMesh`) beyond what the plan asked for. |
 | 7 | ExtendedElementsElement: confirm concrete SDK type | ❌ Not started (blocked) | Still needs a Windows box with MicroStation 2026 to confirm the concrete managed type(s) — can't be done from this Linux environment. The practical fix (§7 above) doesn't strictly depend on it, so this is lower priority now. |
 | 7 | ExtendedElementsElement: ToHost round-trip decision | ❌ Not started | Not yet explicitly decided/documented whether extended elements round-trip back into the host file on receive. |
@@ -77,6 +77,81 @@ reading the registration code paths in `Sdk/Speckle.Converters.Common`
 directly, and the new converter mirrors an existing, working pattern
 (AutoCAD's `SolidXToHostConverter`). Flagging as the next thing to confirm on
 Windows.
+
+### §6 Item Type spike + implementation (this session)
+
+Ran the "spike" from the plan as a documentation search, since no Windows/
+MicroStation box is available in this environment: found Bentley's own
+"Item Types CRUD Operations with Native, COM and Managed APIs" sample and
+several MicroStation Programming Forum threads confirming the real managed
+API shape used to attach/read/write Item Types on an element:
+
+- `CustomItemHost` (constructed as `new CustomItemHost(element, false)`,
+  assumed namespace `Bentley.DgnPlatformNET.Elements` alongside `BDE.Element`
+  — **not independently confirmed**, since no forum sample showed the
+  `using` statements).
+- `CustomItemHost.CustomItems` → `IList<IDgnECInstance>`, every Item Type
+  instance attached to the element. This is the answer to the spike's open
+  question: Item Type instances *are* reachable independently of the
+  generic `DgnECManager.Manager.GetElementProperties(element,
+  SearchAllClasses)` walk `PropertiesExtractor` already does, so they can be
+  read into their own namespaced bag instead of being mixed in.
+- `CustomItemHost.GetCustomItem(libraryName, itemTypeName)` → the specific
+  `IDgnECInstance` for one Item Type, or presumably `null` if not applied to
+  the element — used on receive to find the write target.
+- `IDgnECInstance.SetString(accessString, value)` — the one write method
+  directly confirmed in a real code sample
+  (`ecInstance.SetString("Type", "Modified Sofa")`). Used for every property
+  regardless of its underlying scalar type (numbers formatted
+  culture-invariantly via `IFormattable` first); typed setters
+  (`SetDouble`/`SetInteger`/etc.) may also exist but weren't confirmed, so
+  weren't guessed at.
+- `IDgnECInstance.WriteChanges()` — assumed necessary to persist a
+  `SetString` call back to the element, per the general DgnEC instance
+  pattern; not independently confirmed in a sample.
+
+Implemented with this API:
+`Converters/Bentley/Speckle.Converters.MicroStationShared/ToSpeckle/
+Properties/ItemTypePropertiesExtractor.cs` (export) and
+`Connectors/Bentley/Speckle.Connectors.MicroStationShared/HostApp/
+MicroStationItemTypeBaker.cs` (import). Also factored the scalar
+EC-value-extraction logic shared by `PropertiesExtractor` and
+`ItemTypePropertiesExtractor` into a new
+`ToSpeckle/Properties/EcPropertyValueReader.cs` rather than duplicating it.
+
+**Explicit decision** (resolves the plan's Risk section for §6): on receive,
+an Item Type named in the incoming data that has no matching definition
+already in the target file (i.e. `GetCustomItem` returns nothing) is
+**skipped and logged**, not auto-created. Authoring a new `ItemTypeLibrary`/
+`ItemType` schema definition generically was judged too risky to implement
+without Windows SDK verification — the `ItemTypeLibrary.FindByName` /
+`GetItemTypeByName` / `ApplyCustomItem` APIs exist per the forum research,
+but their exact parameter semantics (the extra `bool` "import library"
+argument seen in samples) weren't confirmed enough to use safely for
+writing new definitions into a user's file.
+
+**Still needed before this is trustworthy**: a Windows/MicroStation 2026 box
+to (1) confirm `CustomItemHost`'s actual namespace and constructor
+semantics, (2) confirm `GetCustomItem` really returns null (vs. throwing)
+for an unmatched Item Type, (3) confirm `SetString` performs correct type
+coercion for non-string Item Type properties (numeric/boolean), and
+(4) run an actual send → receive round-trip against a file with real Item
+Types applied. None of this compiles on Linux (same constraint as the rest
+of this connector), so it's unverified by anything other than reading the
+Bentley sample code found via search — flagging that explicitly rather than
+presenting it as done.
+
+**Note on the new test project**: `Connectors/Bentley/Speckle.Connectors.
+MicroStationShared.Tests/` has no `packages.lock.json` yet (Central Package
+Management + `RestorePackagesWithLockFile` normally require one committed,
+per `CLAUDE.md`) — this environment has no `dotnet` CLI available to
+generate one. It isn't in any `.slnx`, matching its Converters-side sibling,
+so `dotnet restore --locked-mode` on the solution files never touches it;
+the `test`/`test-and-pack` Build targets invoke `dotnet test` per
+`*.Tests.csproj` without `--locked-mode`, so a missing lock file gets
+auto-generated on first restore rather than failing the build. Still, run
+`dotnet restore` on it once on Windows and commit the resulting
+`packages.lock.json`, to match repo convention.
 
 ## Decision
 
