@@ -13,6 +13,71 @@ Also added 2026-07-25: `ExtendedElementsElement`-classed objects currently
 have no conversion path that reliably succeeds — see the "Current state" and
 plan §7 below.
 
+## Progress Tracker
+
+**Last updated**: 2026-07-28, re-verified against the actual code on
+`claude/bentley-multi-object-transfer-nvgmh2` (not just prior notes in this
+file). Most of §1-§2, §6 and §7 landed in commit `6757fbc` ("20260728", Chris
+Andrew, 2026-07-28) without this file being updated — the "Current state"
+section above and the plan below are now stale in places; this tracker is the
+up-to-date source of truth. `Connectors/Bentley/report.json` and
+`ELEMENT_COVERAGE.csv` (added in the same commit) are real element-inventory
+dumps from a live Windows/MicroStation run — evidence the §1 spike did happen
+against a real file, even though the encoding *decision* itself (mesh-only,
+no lossless kernel encoding — see §1 row below) isn't written down anywhere
+in prose.
+
+**Overall: ~65%** [██████░░░░]
+
+| # | Item | Status | Notes |
+|---|---|---|---|
+| 1 | Spike: encoding strategy | ✅ Done (decided) | No accessible brep/kernel serialization API is used — `SOG.SolidX.encodedValue` is always written with `format = "microstation"` and `contents = string.Empty` (`ElementToSpeckleDataObjectBuilder.ConvertToSolidX`). Decision taken implicitly: mesh-only tessellated `displayValue`, per the plan's own documented fallback risk. Not written down in this file until now. |
+| 1b | Cell-dispatch trace | ✅ Done (confirmed) | Cell-definition children are added as plain atomic objects (`MicroStationInstanceUnpacker.UnpackDefinition` → `AddAtomicObject`) and flow through the same `ConvertOrProxy`/converter-registry path as top-level elements (`MicroStationRootObjectBuilder.Build`). They already benefit from the typed Solid/Surface converters below with no extra wiring needed. |
+| 2 | Typed ToSpeckle converters (Solid) | ✅ Done | `SolidElementToSpeckleConverter` → `SolidElementToSpeckleRawConverter` → `ElementToSpeckleDataObjectBuilder.ConvertToSolidX`, produces a real `SOG.SolidX` (tessellated mesh `displayValue`, empty raw encoding, primitive parameter values in `properties`). **Was not actually compiled** until this pass — see "Fixed" below. |
+| 2 | Typed ToSpeckle converters (Surface) | ✅ Done | `SurfaceElementToSpeckleConverter` → `SurfaceElementToSpeckleRawConverter` → `ElementToSpeckleDataObjectBuilder.ConvertToSurfaceOrGraphicOrDataObject`, produces a real `SOG.Surface` (NURBS control points/knots) when the graphics processor announces an `MSBsplineSurface`, else falls back to a graphic/DataObject. This is actually *better* than the plan's minimum bar (a real parametric surface, not mesh-only). |
+| 2 | Typed ToSpeckle converter (Parametric Solid) | ✅ Done (folded in, this pass) | Plan called for a *separate* `ParametricSolidElementToSpeckleConverter`, but the converter-registration framework only allows one top-level converter per exact .NET type (`ConverterManager.ResolveConverter`/`AddConverters` — confirmed by reading `Sdk/Speckle.Converters.Common/Registration/*.cs`), so a second converter on `BDE.SolidElement` can't coexist with `SolidElementToSpeckleConverter`. Folded the decision into the single reachable converter instead: added `ElementToSpeckleDataObjectBuilder.IsParametricSolid(...)` and had `SolidElementToSpeckleRawConverter` call it to decide `includeParametricValues`. Deleted the dead, never-referenced `ParametricSolidElementToSpeckleRawConverter.cs`, which also implemented `ITypedConverter<BDE.SolidElement, Base>` and would have created an ambiguous duplicate DI registration for that interface. |
+| 3 | ToHost mirror: narrow fallback converter | ✅ Done | `SolidLikeDataObjectToHostConverter.IsSolidLikeFallback` now gates on `conversionKind == "fallback"`, so it no longer intercepts the new typed Solid/Surface output. |
+| 3 | ToHost mirror: typed `SOG.SolidX → BDE` converter | ✅ Done, this pass | **Was completely missing** — receiving a MicroStation-sent Solid back into MicroStation would have thrown `ConversionNotSupportedException` (no converter registered for `SOG.SolidX`, which does not inherit `DisplayableObject`; confirmed against the equivalent AutoCAD `SolidXToHostConverter`, the only other place in this repo that handles `SolidX`). Added `ToHost/Geometry/SolidXToHostConverter.cs`: rebuilds from the tessellated `displayValue` meshes (there is no lossless raw encoding to decode per §1), mirroring the AutoCAD converter's fallback branch. |
+| 3 | ToHost mirror: typed `SOG.Surface → BDE.SurfaceElement` converter | ❌ Not started | No connector in this repo has a `SOG.Surface` ToHost converter yet (checked: zero matches for `typeof(SOG.Surface)` repo-wide), so there's no established pattern to follow and native B-spline surface reconstruction is real, unverified Bentley SDK territory. Left alone rather than guessed at — needs the Windows spike. Received Surfaces currently have no receive path at all (no fallback either, since real `SOG.Surface` isn't a `DisplayableObject`). |
+| 4 | Cell integration | ✅ Done (see 1b) | |
+| 5 | Tests | 🟡 Started, partial | `Speckle.Converters.MicroStationShared.Tests` project exists (NUnit, `net48`) with one test (`FallbackConverterTests`, covers §7's empty-`displayValue` fix only). It references `Speckle.Converters.MicroStation2026.csproj` directly, so like the rest of this connector it's Windows-SDK-only and can't be built/run from this Linux environment. No coverage yet for the Solid/Surface/Parametric converters, the new `SolidXToHostConverter`, or the narrowed fallback host converter. |
+| 6 | Item Type properties: export | 🟡 Wired, functionally unverified | `ItemTypePropertiesExtractor` exists and is wired into `MicroStationRootToSpeckleConverter` (writes `properties["Item Types"]`), matching the plan's key naming. However it works by reflecting for property names like `"ItemType"`/`"CustomItemHost"` directly on the element — the real Bentley API exposes Item Types via the static `CustomItemHost.FromElement(element)` factory, not an element property, so this is very likely a silent no-op against a real file. Explicitly scoped as "best-effort" in its own doc comment. Needs the §6 spike to actually read `CustomItemHost`/`ItemTypeLibrary`. |
+| 6 | Item Type properties: import | 🟡 Wired, functionally unverified | `MicroStationItemTypeBaker.ApplyItemTypes` is wired into `MicroStationHostObjectBuilder.AddToModel` alongside the level/colour bakers. Same caveat as export: it reflects for a settable `"ItemType"` property on the element, which likely doesn't exist on the real API (writeback needs the `CustomItemHost` EC-instance API). |
+| 6 | Item Type round-trip tests | ❌ Not started | Blocked on the export/import logic actually working against the real API first. |
+| 7 | ExtendedElementsElement: don't throw on empty displayValue | ✅ Done | `ElementToSpeckleFallbackConverter.Convert` returns a properties-only `DataObject` when no display geometry is found instead of throwing `ConversionException`. Also gained an additional bounding-box-mesh fallback (`TryAddRangeFallbackMesh`) beyond what the plan asked for. |
+| 7 | ExtendedElementsElement: confirm concrete SDK type | ❌ Not started (blocked) | Still needs a Windows box with MicroStation 2026 to confirm the concrete managed type(s) — can't be done from this Linux environment. The practical fix (§7 above) doesn't strictly depend on it, so this is lower priority now. |
+| 7 | ExtendedElementsElement: ToHost round-trip decision | ❌ Not started | Not yet explicitly decided/documented whether extended elements round-trip back into the host file on receive. |
+
+### Fixed in this pass (2026-07-28)
+
+1. **`SolidElementToSpeckleRawConverter.cs` was never added to
+   `Speckle.Converters.MicroStationShared.projitems`** — it existed on disk
+   but wasn't part of the compiled shared-items list, so on a real Windows
+   build the type wouldn't exist in the assembly at all. Added it to the
+   `.projitems` file.
+2. **Ambiguous DI registration**: `ParametricSolidElementToSpeckleRawConverter`
+   was a second, unreferenced implementation of
+   `ITypedConverter<BDE.SolidElement, Base>` (the same interface
+   `SolidElementToSpeckleRawConverter` implements). Multiple registrations for
+   one interface resolve non-deterministically via last-registered-wins when
+   injected as a single constructor parameter. Deleted it and folded its
+   "is this a parametric solid" decision into
+   `ElementToSpeckleDataObjectBuilder.IsParametricSolid` +
+   `SolidElementToSpeckleRawConverter`, so there's exactly one converter for
+   `BDE.SolidElement` and it makes the parametric/non-parametric call itself.
+3. **Missing `SOG.SolidX` receive path**: added
+   `ToHost/Geometry/SolidXToHostConverter.cs` so a MicroStation-authored Solid
+   can round-trip back into MicroStation (degraded to its tessellated display
+   mesh, since there's no lossless encoding to decode — consistent with the
+   §1 decision).
+
+None of this has been build-verified against the real Bentley SDK (Windows
+required, unavailable here) — the `.projitems`/DI fixes are verified by
+reading the registration code paths in `Sdk/Speckle.Converters.Common`
+directly, and the new converter mirrors an existing, working pattern
+(AutoCAD's `SolidXToHostConverter`). Flagging as the next thing to confirm on
+Windows.
+
 ## Decision
 
 Commit `1d3adfb` ("feat(microstation): robust fallback for unsupported elements")
