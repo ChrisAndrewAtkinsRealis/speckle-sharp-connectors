@@ -11,7 +11,10 @@
     <File Path="global.json" />
   </Folder>
   <Folder Name="/Connectors/" />
+  <Folder Name="/Connectors/Bentley/" />
   <Folder Name="/Connectors/Bentley/2026/">
+    <File Path="Connectors/Bentley/ELEMENT_COVERAGE.csv" />
+    <File Path="Connectors/Bentley/report.json" />
     <Project Path="Connectors\Bentley\Speckle.Connectors.MicroStation2026\Speckle.Connectors.MicroStation2026.csproj" />
     <Project Path="Converters\Bentley\Speckle.Converters.MicroStation2026\Speckle.Converters.MicroStation2026.csproj" />
   </Folder>
