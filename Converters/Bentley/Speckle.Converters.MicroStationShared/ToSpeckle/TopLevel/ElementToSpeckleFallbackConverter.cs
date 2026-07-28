@@ -262,6 +262,7 @@ public class ElementToSpeckleFallbackConverter(
   private IEnumerable<BDE.Element> EnumerateChildren(BDE.Element element, bool includeInvisible = false)
   {
     var seen = new HashSet<string>(StringComparer.Ordinal);
+    bool foundViaGetChildren = false;
 
     foreach (var child in element.GetChildren())
     {
@@ -270,12 +271,17 @@ public class ElementToSpeckleFallbackConverter(
         string key = childElement.ElementId.ToString();
         if (seen.Add(key))
         {
+          foundViaGetChildren = true;
           yield return childElement;
         }
       }
     }
 
-    if (element is not BDE.ExtendedElementElement)
+    // GetChildren() reports no children for element/file combinations where ChildElemIter still finds real
+    // children (confirmed against a live file: ELEMENT_COVERAGE.csv/report.json show ChildCount_GetChildren
+    // == -1 while ChildCount_ChildElemIter has real counts, for elements that aren't ExtendedElementElement).
+    // Always fall back to the iterator when GetChildren() came up empty, not just for that one type.
+    if (foundViaGetChildren && element is not BDE.ExtendedElementElement)
     {
       yield break;
     }

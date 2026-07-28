@@ -15,17 +15,22 @@ plan §7 below.
 
 ## Progress Tracker
 
-**Last updated**: 2026-07-28 (second pass, this session), replacing the
-reflection-based §6 Item Type read/write with the real `CustomItemHost` API.
-Most of §1-§2, §6 and §7 landed in commit `6757fbc` ("20260728", Chris
-Andrew, 2026-07-28) without this file being updated — the "Current state"
-section above and the plan below are now stale in places; this tracker is the
-up-to-date source of truth. `Connectors/Bentley/report.json` and
-`ELEMENT_COVERAGE.csv` (added in the same commit) are real element-inventory
-dumps from a live Windows/MicroStation run — evidence the §1 spike did happen
-against a real file, even though the encoding *decision* itself (mesh-only,
-no lossless kernel encoding — see §1 row below) isn't written down anywhere
-in prose.
+**Last updated**: 2026-07-28 (third pass, this session), fixing the §7
+child-recovery gate that was causing received `ExtendedElementsElement`/
+type-2 elements to come back as a bounding-box mesh instead of their real
+shape — see the new row below, diagnosed directly from the `report.json`/
+`ELEMENT_COVERAGE.csv` evidence gathered in the prior pass.
+
+Prior update (second pass, this session) replaced the reflection-based §6
+Item Type read/write with the real `CustomItemHost` API. Most of §1-§2, §6
+and §7 landed in commit `6757fbc` ("20260728", Chris Andrew, 2026-07-28)
+without this file being updated — the "Current state" section above and the
+plan below are now stale in places; this tracker is the up-to-date source of
+truth. `Connectors/Bentley/report.json` and `ELEMENT_COVERAGE.csv` (added in
+the same commit) are real element-inventory dumps from a live
+Windows/MicroStation run — evidence the §1 spike did happen against a real
+file, even though the encoding *decision* itself (mesh-only, no lossless
+kernel encoding — see §1 row below) isn't written down anywhere in prose.
 
 **Overall: ~70%** [███████░░░]
 
@@ -45,7 +50,8 @@ in prose.
 | 6 | Item Type properties: import | 🟡 Rewritten to real API, build-unverified | `MicroStationItemTypeBaker.ApplyItemTypes` no longer reflects for a settable `"ItemType"` element property. It now reads `DataObject.properties["Item Types"]`, resolves each Item Type via `CustomItemHost.GetCustomItem(library, itemTypeName)`, and writes values with `IDgnECInstance.SetString` + `WriteChanges()` (per the same Bentley CRUD sample: `ecInstance.SetString("Type", "Modified Sofa")`). **Decision** (per the Risk section below): an incoming Item Type with no match in the target file is skipped and logged, not auto-created — creating `ItemTypeLibrary`/`ItemType` definitions generically was judged too risky to guess without SDK verification, so this is the documented "import-only-if-already-defined" fallback the plan called for. The parsing of the `{"library", "properties"}` entry shape was pulled into a pure `MicroStationItemTypeBaker.TryParseItemTypeEntry` so it's unit-testable without the Bentley SDK (see tests below); the `CustomItemHost`/`IDgnECInstance` calls themselves are still unverified against a real file. |
 | 6 | Item Type round-trip tests | 🟡 Partial | Added `Speckle.Connectors.MicroStationShared.Tests` (new test project, mirrors the existing Converters test project: NUnit4, net48, references `Speckle.Connectors.MicroStation2026.csproj`) with unit tests for `MicroStationItemTypeBaker.TryParseItemTypeEntry` (well-formed entry, missing/blank library, missing properties, non-dictionary entry). This covers the wire-contract between extractor and baker but not the `CustomItemHost` calls themselves — those need Moq mocks of Bentley EC interfaces (`IDgnECInstance`/`IECClass`/`IECPropertyValue`) whose exact member shapes aren't confirmed, or a live round-trip against a real DGN file. Still blocked on Windows verification for full coverage. |
 | 7 | ExtendedElementsElement: don't throw on empty displayValue | ✅ Done | `ElementToSpeckleFallbackConverter.Convert` returns a properties-only `DataObject` when no display geometry is found instead of throwing `ConversionException`. Also gained an additional bounding-box-mesh fallback (`TryAddRangeFallbackMesh`) beyond what the plan asked for. |
-| 7 | ExtendedElementsElement: confirm concrete SDK type | ❌ Not started (blocked) | Still needs a Windows box with MicroStation 2026 to confirm the concrete managed type(s) — can't be done from this Linux environment. The practical fix (§7 above) doesn't strictly depend on it, so this is lower priority now. |
+| 7 | ExtendedElementsElement: fix child-recovery gate producing box-only geometry | ✅ Done, this pass | Live evidence in `report.json`/`ELEMENT_COVERAGE.csv` showed `ChildCount_GetChildren == -1` for every sampled element while `ChildCount_ChildElemIter` had real children (3-97) for the file's non-`ExtendedElementElement` type-2 elements — but `EnumerateChildren` only fell back to the `ChildElemIter` recovery path when `target is BDE.ExtendedElementElement`, so those elements' real children (and their geometry) were never reached and every one fell through to `TryAddRangeFallbackMesh` (an axis-aligned bounding box) instead of real shape. `EnumerateChildren` (`ElementToSpeckleFallbackConverter.cs`) now falls back to `ChildElemIter` whenever `GetChildren()` returned nothing, not only for `ExtendedElementElement`. Added `FallbackConverter_ReturnsBoundingBoxMesh_WhenOnlyElementRangeIsAvailable` to cover the box-fallback path itself, which previously had no test coverage. Still can't be compiled/run from this Linux environment (Bentley SDK is Windows-only) — needs a Windows verification pass against the real file. |
+| 7 | ExtendedElementsElement: confirm concrete SDK type | ❌ Not started (blocked) | Still needs a Windows box with MicroStation 2026 to confirm the concrete managed type(s) — can't be done from this Linux environment. `DotNetTypeName` in `report.json` is empty for every sampled element, so it's still unconfirmed whether the file's type-2/type-106 elements are actually `ExtendedElementElement` — the child-recovery fix above sidesteps that by keying off `GetChildren()` behavior instead of the type check, but the type itself is still unverified. |
 | 7 | ExtendedElementsElement: ToHost round-trip decision | ❌ Not started | Not yet explicitly decided/documented whether extended elements round-trip back into the host file on receive. |
 
 ### Fixed in this pass (2026-07-28)
