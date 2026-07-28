@@ -1,45 +1,57 @@
+using System.Globalization;
+using Bentley.DgnPlatformNET.DgnEC;
+using Bentley.DgnPlatformNET.Elements;
 using Microsoft.Extensions.Logging;
+using Speckle.Objects.Data;
 using Speckle.Sdk;
 using Speckle.Sdk.Models;
 
 namespace Speckle.Connectors.MicroStation.HostApp;
 
 /// <summary>
-/// Best-effort receive-side Item Type writeback for MicroStation elements.
-/// The Bentley API is version-dependent, so this baker is intentionally defensive and never throws
-/// on missing Item Type support.
+/// Receive-side Item Type writeback for MicroStation elements, via <see cref="CustomItemHost"/>. Reads the
+/// namespaced <c>properties["Item Types"]</c> bag written by
+/// <c>Speckle.Converters.MicroStation.ToSpeckle.Properties.ItemTypePropertiesExtractor</c> and applies each
+/// Item Type's values back onto the received element.
 /// </summary>
+/// <remarks>
+/// An incoming Item Type is matched to an existing Item Type/library pair already defined in the target file via
+/// <c>CustomItemHost.GetCustomItem(string, string)</c>. An Item Type with no match in the target file is
+/// skipped and logged rather than attempting to author a new ItemTypeLibrary/ItemType definition - creating
+/// definitions generically risks corrupting the file's Item Type libraries. See the "Risk" section of
+/// Converters/Bentley/PLAN.md for the reasoning behind this "import only if already defined" decision.
+/// </remarks>
 public class MicroStationItemTypeBaker
 {
   private readonly ILogger<MicroStationItemTypeBaker> _logger;
 
-  public MicroStationItemTypeBaker(
-    ILogger<MicroStationItemTypeBaker> logger
-  )
+  public MicroStationItemTypeBaker(ILogger<MicroStationItemTypeBaker> logger)
   {
     _logger = logger;
   }
 
   public void ApplyItemTypes(BDE.Element element, Base source)
   {
-    if (element is null || source is null)
+    if (element is null || source is not DataObject dataObject)
     {
       return;
     }
 
     try
     {
-      if (source is not { } baseSource)
+      if (
+        !dataObject.properties.TryGetValue("Item Types", out object? itemTypesValue)
+        || itemTypesValue is not IDictionary<string, object?> itemTypes
+        || itemTypes.Count == 0
+      )
       {
         return;
       }
 
-      if (TryGetItemTypes(baseSource, out IDictionary<string, object?>? itemTypes) && itemTypes is not null)
+      var host = new CustomItemHost(element, false);
+      foreach (var kvp in itemTypes)
       {
-        foreach (var kvp in itemTypes)
-        {
-          ApplySingleItemType(element, kvp.Key, kvp.Value);
-        }
+        ApplySingleItemType(host, element, kvp.Key, kvp.Value);
       }
     }
     catch (Exception ex) when (!ex.IsFatal())
@@ -48,77 +60,89 @@ public class MicroStationItemTypeBaker
     }
   }
 
-  private static bool TryGetItemTypes(Base source, out IDictionary<string, object?>? itemTypes)
+  private void ApplySingleItemType(CustomItemHost host, BDE.Element element, string itemTypeName, object? entryValue)
   {
-    itemTypes = null;
-
-    if (source is null)
-    {
-      return false;
-    }
-
-    if (source is IDictionary<string, object?> directDictionary)
-    {
-      itemTypes = directDictionary;
-      return true;
-    }
-
-    try
-    {
-      var property = source.GetType().GetProperty("Item Types");
-      if (property is null)
-      {
-        return false;
-      }
-
-      var propertyValue = property.GetValue(source);
-      if (propertyValue is IDictionary<string, object?> dictionary)
-      {
-        itemTypes = dictionary;
-        return true;
-      }
-    }
-    catch (ArgumentException) when (!System.Diagnostics.Debugger.IsAttached)
-    {
-      // Item Types are optional and should never block receive.
-    }
-    catch (InvalidOperationException) when (!System.Diagnostics.Debugger.IsAttached)
-    {
-      // Item Types are optional and should never block receive.
-    }
-    catch (NotSupportedException) when (!System.Diagnostics.Debugger.IsAttached)
-    {
-      // Item Types are optional and should never block receive.
-    }
-    catch (MethodAccessException) when (!System.Diagnostics.Debugger.IsAttached)
-    {
-      // Item Types are optional and should never block receive.
-    }
-
-    return false;
-  }
-
-  private static void ApplySingleItemType(BDE.Element element, string itemTypeName, object? value)
-  {
-    if (string.IsNullOrWhiteSpace(itemTypeName) || value is null)
+    if (
+      !TryParseItemTypeEntry(itemTypeName, entryValue, out string libraryName, out IDictionary<string, object?> values)
+    )
     {
       return;
     }
 
-    try
+    IDgnECInstance? instance = host.GetCustomItem(libraryName, itemTypeName);
+    if (instance is null)
     {
-      var elementType = element.GetType();
-      var property = elementType.GetProperty("ItemType", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
-      if (property is null)
+      _logger.LogWarning(
+        "Skipping Item Type '{ItemTypeName}' from library '{LibraryName}' on element {ElementId}: not defined in the target file.",
+        itemTypeName,
+        libraryName,
+        element.ElementId
+      );
+      return;
+    }
+
+    foreach (var prop in values)
+    {
+      if (prop.Value is null)
       {
-        return;
+        continue;
       }
 
-      property.SetValue(element, value);
+      try
+      {
+        string stringValue = prop.Value is IFormattable formattable
+          ? formattable.ToString(null, CultureInfo.InvariantCulture)
+          : prop.Value.ToString() ?? "";
+        instance.SetString(prop.Key, stringValue);
+      }
+      catch (Exception ex) when (!ex.IsFatal())
+      {
+        _logger.LogDebug(ex, "Failed to set Item Type property {Property} on {ItemTypeName}", prop.Key, itemTypeName);
+      }
     }
-    catch (Exception ex) when (!ex.IsFatal())
+
+    instance.WriteChanges();
+  }
+
+  /// <summary>
+  /// Parses a single <c>properties["Item Types"]</c> entry, as written by <c>ItemTypePropertiesExtractor</c>:
+  /// <c>{ "library": string, "properties": { ...values... } }</c>. Pulled out as a pure function so the shape
+  /// contract between the extractor and this baker can be unit-tested without the Bentley SDK.
+  /// </summary>
+  public static bool TryParseItemTypeEntry(
+    string itemTypeName,
+    object? entryValue,
+    out string libraryName,
+    out IDictionary<string, object?> values
+  )
+  {
+    libraryName = "";
+    values = new Dictionary<string, object?>();
+
+    if (string.IsNullOrWhiteSpace(itemTypeName) || entryValue is not IDictionary<string, object?> entry)
     {
-      // Item Type writeback is optional and should never block receive.
+      return false;
     }
+
+    if (
+      !entry.TryGetValue("library", out object? libraryObj)
+      || libraryObj is not string library
+      || string.IsNullOrWhiteSpace(library)
+    )
+    {
+      return false;
+    }
+
+    if (
+      !entry.TryGetValue("properties", out object? propertiesObj)
+      || propertiesObj is not IDictionary<string, object?> parsedValues
+    )
+    {
+      return false;
+    }
+
+    libraryName = library;
+    values = parsedValues;
+    return true;
   }
 }
