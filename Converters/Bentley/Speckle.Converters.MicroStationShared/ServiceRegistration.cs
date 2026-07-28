@@ -31,6 +31,8 @@ public static class ServiceRegistration
 
     // helpers
     serviceCollection.AddScoped<PropertiesExtractor>();
+    serviceCollection.AddScoped<ItemTypePropertiesExtractor>();
+    serviceCollection.AddScoped<ToSpeckle.TopLevel.ElementToSpeckleDataObjectBuilder>();
     serviceCollection.AddScoped<MicroStationUnitScaler>();
   }
 }

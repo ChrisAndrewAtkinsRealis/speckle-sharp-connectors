@@ -31,6 +31,11 @@ public class MicroStationInstanceUnpacker : IInstanceUnpacker<MicroStationRootOb
   private readonly IConverterSettingsStore<MicroStationConversionSettings> _settingsStore;
   private readonly PropertiesExtractor _propertiesExtractor;
   private readonly ILogger<MicroStationInstanceUnpacker> _logger;
+  private readonly Dictionary<string, BDE.SharedCellDefinitionElement> _sharedCellDefinitionsByName =
+    new(StringComparer.OrdinalIgnoreCase);
+  private readonly Dictionary<string, BDE.SharedCellDefinitionElement> _sharedCellDefinitionsById =
+    new(StringComparer.Ordinal);
+  private bool _sharedCellDefinitionsIndexed;
 
   public MicroStationInstanceUnpacker(
     IInstanceObjectsManager<MicroStationRootObject, List<BDE.Element>> instanceObjectsManager,
@@ -88,7 +93,7 @@ public class MicroStationInstanceUnpacker : IInstanceUnpacker<MicroStationRootOb
         return;
       }
 
-      var definitionElement = FindSharedCellDefinition(definitionName);
+      var definitionElement = FindSharedCellDefinition(instance, definitionName);
       var children = definitionElement is null ? EnumerateChildren(instance) : EnumerateChildren(definitionElement);
       UnpackDefinition(definitionId, definitionName, depth, children);
     }
@@ -226,26 +231,62 @@ public class MicroStationInstanceUnpacker : IInstanceUnpacker<MicroStationRootOb
     }
   }
 
-  private BDE.SharedCellDefinitionElement? FindSharedCellDefinition(string name)
+  private BDE.SharedCellDefinitionElement? FindSharedCellDefinition(BDE.SharedCellElement instance, string name)
   {
     try
     {
-      // shared-cell definitions are addressed by element id through the model dictionary
-      foreach (BDE.Element element in _settingsStore.Current.Model.GetElements())
+      EnsureSharedCellDefinitionsIndexed();
+
+      string definitionId = instance.GetDefinitionId().ToString();
+      if (_sharedCellDefinitionsById.TryGetValue(definitionId, out BDE.SharedCellDefinitionElement? byId))
       {
-        if (element is BDE.SharedCellDefinitionElement definition && definition.CellName == name)
-        {
-          return definition;
-        }
+        return byId;
       }
 
-      return null;
+      return _sharedCellDefinitionsByName.TryGetValue(name, out BDE.SharedCellDefinitionElement? byName)
+        ? byName
+        : null;
     }
     catch (Exception ex) when (!ex.IsFatal())
     {
       _logger.LogDebug(ex, "Could not locate shared cell definition {Name}, falling back to placement geometry", name);
       return null;
     }
+  }
+
+  private void EnsureSharedCellDefinitionsIndexed()
+  {
+    if (_sharedCellDefinitionsIndexed)
+    {
+      return;
+    }
+
+    foreach (BDE.Element element in _settingsStore.Current.Model.GetElements())
+    {
+      if (element is not BDE.SharedCellDefinitionElement definition)
+      {
+        continue;
+      }
+
+      string? cellName = definition.CellName;
+      if (!string.IsNullOrWhiteSpace(cellName) && !_sharedCellDefinitionsByName.ContainsKey(cellName))
+      {
+        _sharedCellDefinitionsByName[cellName] = definition;
+      }
+
+      string definitionId = definition.ElementId.ToString();
+      if (!_sharedCellDefinitionsById.ContainsKey(definitionId))
+      {
+        _sharedCellDefinitionsById[definitionId] = definition;
+      }
+    }
+
+    _sharedCellDefinitionsIndexed = true;
+    _logger.LogDebug(
+      "Indexed {DefinitionCount} shared cell definitions by name and {DefinitionIdCount} by id",
+      _sharedCellDefinitionsByName.Count,
+      _sharedCellDefinitionsById.Count
+    );
   }
 
   /// <summary>

@@ -28,6 +28,7 @@ public class MicroStationHostObjectBuilder : IHostObjectBuilder
   private readonly IReceiveConversionHandler _conversionHandler;
   private readonly MicroStationInstanceBaker _instanceBaker;
   private readonly MicroStationLevelBaker _levelBaker;
+  private readonly MicroStationItemTypeBaker _itemTypeBaker;
   private readonly MicroStationColorBaker _colorBaker;
   private readonly ICivilHostRebuilder _civilRebuilder;
 
@@ -37,6 +38,7 @@ public class MicroStationHostObjectBuilder : IHostObjectBuilder
     IReceiveConversionHandler conversionHandler,
     MicroStationInstanceBaker instanceBaker,
     MicroStationLevelBaker levelBaker,
+    MicroStationItemTypeBaker itemTypeBaker,
     MicroStationColorBaker colorBaker,
     ICivilHostRebuilder civilRebuilder
   )
@@ -46,6 +48,7 @@ public class MicroStationHostObjectBuilder : IHostObjectBuilder
     _conversionHandler = conversionHandler;
     _instanceBaker = instanceBaker;
     _levelBaker = levelBaker;
+    _itemTypeBaker = itemTypeBaker;
     _colorBaker = colorBaker;
     _civilRebuilder = civilRebuilder;
   }
@@ -165,14 +168,14 @@ public class MicroStationHostObjectBuilder : IHostObjectBuilder
     switch (converted)
     {
       case BDE.Element element:
-        AddToModel(element, levelName, objectId, baked);
+        AddToModel(element, levelName, objectId, atomicObject, baked);
         break;
 
       // data object conversions return element/base pairs
       case IEnumerable<(BDE.Element, Base)> typedList:
         foreach (var (element, _) in typedList)
         {
-          AddToModel(element, levelName, objectId, baked);
+          AddToModel(element, levelName, objectId, atomicObject, baked);
         }
         break;
 
@@ -182,7 +185,7 @@ public class MicroStationHostObjectBuilder : IHostObjectBuilder
         {
           if (obj is BDE.Element element)
           {
-            AddToModel(element, levelName, objectId, baked);
+            AddToModel(element, levelName, objectId, atomicObject, baked);
           }
         }
         break;
@@ -190,7 +193,7 @@ public class MicroStationHostObjectBuilder : IHostObjectBuilder
       case IEnumerable<BDE.Element> elements:
         foreach (var element in elements)
         {
-          AddToModel(element, levelName, objectId, baked);
+          AddToModel(element, levelName, objectId, atomicObject, baked);
         }
         break;
 
@@ -203,11 +206,12 @@ public class MicroStationHostObjectBuilder : IHostObjectBuilder
     return baked;
   }
 
-  private void AddToModel(BDE.Element element, string levelName, string objectId, List<BDE.Element> baked)
+  private void AddToModel(BDE.Element element, string levelName, string objectId, Base source, List<BDE.Element> baked)
   {
-    // assign the received level (recreating the source structure) and colour before persisting the element
+    // assign the received level (recreating the source structure), Item Types, and colour before persisting the element
     _levelBaker.SetElementLevel(element, levelName);
-    _colorBaker.ApplyColor(element, objectId);
+    _itemTypeBaker.ApplyItemTypes(element, source!);
+    _colorBaker.ApplyColor(element, objectId!);
 
     var status = element.AddToModel();
     if (status == BDPN.StatusInt.Error)

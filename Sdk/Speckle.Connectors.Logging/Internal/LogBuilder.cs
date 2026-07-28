@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry.Exporter;
 using OpenTelemetry.Logs;
@@ -59,8 +59,7 @@ internal static class LogBuilder
               );
           }
 
-          //TODO: test this is safe
-          //loggingBuilder.AddSerilog(serilogLogger, true);
+          loggingBuilder.AddSerilog(serilogLogger, true);
         }
       }
 

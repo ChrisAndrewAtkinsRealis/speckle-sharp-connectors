@@ -79,6 +79,7 @@ public static class ServiceRegistration
     // receive
     services.AddSingleton(DefaultTraversal.CreateTraversalFunc());
     services.AddScoped<MicroStationLevelBaker>();
+    services.AddScoped<MicroStationItemTypeBaker>();
     services.AddScoped<MicroStationColorBaker>();
     services.AddScoped<IHostObjectBuilder, MicroStationHostObjectBuilder>();
 

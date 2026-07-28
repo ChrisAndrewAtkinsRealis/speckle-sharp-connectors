@@ -25,6 +25,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)HostApp\MicroStationReferenceService.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)HostApp\MicroStationInstanceBaker.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)HostApp\MicroStationInstanceUnpacker.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)HostApp\MicroStationItemTypeBaker.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)HostApp\MicroStationLevelBaker.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)HostApp\MicroStationTransformHelper.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Operations\Receive\CivilHostRebuilder.cs" />

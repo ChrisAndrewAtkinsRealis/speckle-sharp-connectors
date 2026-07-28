@@ -8,7 +8,7 @@ using Speckle.Sdk.Models;
 namespace Speckle.Converters.MicroStation.ToHost.Geometry;
 
 /// <summary>
-/// Converts fallback-produced data objects flagged as solid/surface-like MSElementType payloads.
+/// Converts fallback-produced data objects flagged as solid/surface-like payloads.
 /// This returns native displayable geometry (meshes/curves/points) so receive can bake it.
 /// </summary>
 [NameAndRankValue(typeof(DataObject), NameAndRankValueAttribute.SPECKLE_DEFAULT_RANK + 1)]
@@ -23,7 +23,9 @@ public class SolidLikeDataObjectToHostConverter(
     var dataObject = (DataObject)target;
     if (!IsSolidLikeFallback(dataObject))
     {
-      throw new ConversionNotSupportedException("DataObject is not marked as solid/surface-like fallback payload.");
+      throw new ConversionNotSupportedException(
+        "DataObject is not a fallback payload with a solid/surface-like MicroStation element type."
+      );
     }
 
     var result = new List<(BDE.Element, Base)>();
@@ -33,12 +35,17 @@ public class SolidLikeDataObjectToHostConverter(
 
   private static bool IsSolidLikeFallback(DataObject dataObject)
   {
+    if (!dataObject.properties.TryGetValue("conversionKind", out object? conversionKind) || conversionKind is not string kind)
+    {
+      return false;
+    }
+
     if (!dataObject.properties.TryGetValue("sourceMSElementType", out object? value) || value is not string typeName)
     {
       return false;
     }
 
-    return typeName is "Solid" or "Surface" or "Cone";
+    return kind == "fallback" && typeName is "Solid" or "Surface" or "Cone";
   }
 
   private void ConvertDataObject(DataObject target, List<(BDE.Element, Base)> result)
