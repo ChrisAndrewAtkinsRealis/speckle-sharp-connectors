@@ -8,7 +8,8 @@ namespace Speckle.Converters.MicroStation.ToSpeckle.Raw;
 /// MicroStation stores faces as 1-based point indices with 0 acting as the face loop terminator/pad.
 /// </summary>
 public class PolyfaceHeaderToSpeckleRawConverter(
-  IConverterSettingsStore<MicroStationConversionSettings> settingsStore
+  IConverterSettingsStore<MicroStationConversionSettings> settingsStore,
+  IReferencePointConverter referencePointConverter
 ) : ITypedConverter<BG.PolyfaceHeader, SOG.Mesh>
 {
   public SOG.Mesh Convert(BG.PolyfaceHeader target)
@@ -18,9 +19,12 @@ public class PolyfaceHeaderToSpeckleRawConverter(
     var vertices = new List<double>();
     foreach (var point in target.Point)
     {
-      vertices.Add(point.X / uor);
-      vertices.Add(point.Y / uor);
-      vertices.Add(point.Z / uor);
+      var extPoint = referencePointConverter.ConvertToExternalCoordinates(
+        new BG.DPoint3d(point.X / uor, point.Y / uor, point.Z / uor)
+      );
+      vertices.Add(extPoint.X);
+      vertices.Add(extPoint.Y);
+      vertices.Add(extPoint.Z);
     }
 
     var faces = new List<int>();

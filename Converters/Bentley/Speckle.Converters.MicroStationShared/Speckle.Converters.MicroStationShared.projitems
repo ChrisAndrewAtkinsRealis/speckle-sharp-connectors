@@ -10,10 +10,12 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="$(MSBuildThisFileDirectory)GlobalUsings.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)IReferencePointConverter.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MicroStationConversionSettings.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MicroStationConversionSettingsFactory.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MicroStationRootToSpeckleConverter.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MicroStationToSpeckleUnitConverter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ReferencePointConverter.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ServiceRegistration.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Extensions\ElementCurveExtensions.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Extensions\ElementExtensions.cs" />

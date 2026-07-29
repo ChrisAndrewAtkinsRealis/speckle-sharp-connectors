@@ -29,6 +29,10 @@ public static class ServiceRegistration
       ConverterSettingsStore<MicroStationConversionSettings>
     >();
 
+    // one reference origin per send/receive operation, shared by every raw geometry converter (see
+    // ReferencePointConverter) so civil/GIS-scale absolute coordinates don't lose precision downstream
+    serviceCollection.AddScoped<IReferencePointConverter, ReferencePointConverter>();
+
     // helpers
     serviceCollection.AddScoped<PropertiesExtractor>();
     serviceCollection.AddScoped<ItemTypePropertiesExtractor>();

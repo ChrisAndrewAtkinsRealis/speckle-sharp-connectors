@@ -19,7 +19,8 @@ public class ElementToSpeckleFallbackConverter(
   ITypedConverter<BG.PolyfaceHeader, SOG.Mesh> meshConverter,
   ITypedConverter<BG.CurveVector, List<ICurve>> curveVectorConverter,
   IConverterSettingsStore<MicroStationConversionSettings> settingsStore,
-  ILogger<ElementToSpeckleFallbackConverter> logger
+  ILogger<ElementToSpeckleFallbackConverter> logger,
+  IReferencePointConverter referencePointConverter
 ) : IToSpeckleTopLevelConverter
 {
   private readonly double _facetChordTolerance = ResolveToleranceEnvironmentValue(
@@ -499,33 +500,26 @@ public class ElementToSpeckleFallbackConverter(
       maxZ = minZ + EPSILON;
     }
 
-    var vertices = new List<double>
+    var corners = new (double x, double y, double z)[]
     {
-      minX,
-      minY,
-      minZ,
-      maxX,
-      minY,
-      minZ,
-      maxX,
-      maxY,
-      minZ,
-      minX,
-      maxY,
-      minZ,
-      minX,
-      minY,
-      maxZ,
-      maxX,
-      minY,
-      maxZ,
-      maxX,
-      maxY,
-      maxZ,
-      minX,
-      maxY,
-      maxZ,
+      (minX, minY, minZ),
+      (maxX, minY, minZ),
+      (maxX, maxY, minZ),
+      (minX, maxY, minZ),
+      (minX, minY, maxZ),
+      (maxX, minY, maxZ),
+      (maxX, maxY, maxZ),
+      (minX, maxY, maxZ),
     };
+
+    var vertices = new List<double>(corners.Length * 3);
+    foreach (var (x, y, z) in corners)
+    {
+      var extPoint = referencePointConverter.ConvertToExternalCoordinates(new BG.DPoint3d(x, y, z));
+      vertices.Add(extPoint.X);
+      vertices.Add(extPoint.Y);
+      vertices.Add(extPoint.Z);
+    }
 
     var faces = new List<int>
     {

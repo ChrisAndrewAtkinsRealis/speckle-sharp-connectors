@@ -8,7 +8,8 @@ namespace Speckle.Converters.MicroStation.ToSpeckle.Raw;
 /// Converts a native point list (in UoRs) to a Speckle polyline (in model master units).
 /// </summary>
 public class PointListToSpecklePolylineRawConverter(
-  IConverterSettingsStore<MicroStationConversionSettings> settingsStore
+  IConverterSettingsStore<MicroStationConversionSettings> settingsStore,
+  IReferencePointConverter referencePointConverter
 ) : ITypedConverter<List<BG.DPoint3d>, SOG.Polyline>
 {
   public SOG.Polyline Convert(List<BG.DPoint3d> target)
@@ -21,9 +22,12 @@ public class PointListToSpecklePolylineRawConverter(
     var coordinates = new List<double>(3 * target.Count);
     foreach (var point in points)
     {
-      coordinates.Add(point.X / uor);
-      coordinates.Add(point.Y / uor);
-      coordinates.Add(point.Z / uor);
+      var extPoint = referencePointConverter.ConvertToExternalCoordinates(
+        new BG.DPoint3d(point.X / uor, point.Y / uor, point.Z / uor)
+      );
+      coordinates.Add(extPoint.X);
+      coordinates.Add(extPoint.Y);
+      coordinates.Add(extPoint.Z);
     }
 
     return new SOG.Polyline
