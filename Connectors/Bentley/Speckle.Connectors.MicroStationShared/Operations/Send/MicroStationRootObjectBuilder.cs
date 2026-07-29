@@ -30,6 +30,7 @@ public class MicroStationRootObjectBuilder : IRootObjectBuilder<MicroStationRoot
   private readonly MicroStationColorUnpacker _colorUnpacker;
   private readonly ICivilModelContributor _civilModelContributor;
   private readonly MicroStationContext _context;
+  private readonly IReferencePointConverter _referencePointConverter;
   private readonly ILogger<MicroStationRootObjectBuilder> _logger;
 
   // reference (attachment id) -> its collection; and "{parentKey}:{levelName}" -> level collection under that parent
@@ -45,6 +46,7 @@ public class MicroStationRootObjectBuilder : IRootObjectBuilder<MicroStationRoot
     MicroStationColorUnpacker colorUnpacker,
     ICivilModelContributor civilModelContributor,
     MicroStationContext context,
+    IReferencePointConverter referencePointConverter,
     ILogger<MicroStationRootObjectBuilder> logger
   )
   {
@@ -56,6 +58,7 @@ public class MicroStationRootObjectBuilder : IRootObjectBuilder<MicroStationRoot
     _colorUnpacker = colorUnpacker;
     _civilModelContributor = civilModelContributor;
     _context = context;
+    _referencePointConverter = referencePointConverter;
     _logger = logger;
   }
 
@@ -139,6 +142,15 @@ public class MicroStationRootObjectBuilder : IRootObjectBuilder<MicroStationRoot
     {
       SpeckleMicroStationPanel.LogPanelError("All converted objects failed in send pipeline.");
       throw new SpeckleException("Failed to convert all objects.");
+    }
+
+    // record the reference origin (native master-unit coordinates of whichever point converted first) so a
+    // receiving MicroStation session can add it back and rebuild geometry at its true absolute location - see
+    // IReferencePointConverter for why every point in this send was recentered around it in the first place.
+    if (_referencePointConverter.Origin is { } origin)
+    {
+      root["referencePointOrigin"] = new List<double> { origin.X, origin.Y, origin.Z };
+      root["referencePointOriginUnits"] = settings.SpeckleUnits;
     }
 
     SpeckleMicroStationPanel.LogPanelInfo("Send build completed successfully.");

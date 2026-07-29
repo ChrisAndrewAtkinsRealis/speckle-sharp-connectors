@@ -1,15 +1,18 @@
+using Microsoft.Extensions.Logging;
 using Speckle.Connectors.Common.Builders;
 using Speckle.Connectors.Common.Conversion;
 using Speckle.Connectors.Common.Operations;
 using Speckle.Connectors.Common.Operations.Receive;
 using Speckle.Connectors.MicroStation.HostApp;
 using Speckle.Converters.Common;
+using Speckle.Converters.MicroStation;
 using Speckle.Sdk.Common;
 using Speckle.Sdk.Models;
 using Speckle.Sdk.Models.Collections;
 using Speckle.Sdk.Models.GraphTraversal;
 using Speckle.Sdk.Models.Instances;
 using Speckle.Sdk.Pipelines.Progress;
+using BG = Bentley.GeometryNET;
 
 namespace Speckle.Connectors.MicroStation.Operations.Receive;
 
@@ -31,6 +34,9 @@ public class MicroStationHostObjectBuilder : IHostObjectBuilder
   private readonly MicroStationItemTypeBaker _itemTypeBaker;
   private readonly MicroStationColorBaker _colorBaker;
   private readonly ICivilHostRebuilder _civilRebuilder;
+  private readonly IConverterSettingsStore<MicroStationConversionSettings> _converterSettings;
+  private readonly IReferencePointConverter _referencePointConverter;
+  private readonly ILogger<MicroStationHostObjectBuilder> _logger;
 
   public MicroStationHostObjectBuilder(
     IRootToHostConverter converter,
@@ -40,7 +46,10 @@ public class MicroStationHostObjectBuilder : IHostObjectBuilder
     MicroStationLevelBaker levelBaker,
     MicroStationItemTypeBaker itemTypeBaker,
     MicroStationColorBaker colorBaker,
-    ICivilHostRebuilder civilRebuilder
+    ICivilHostRebuilder civilRebuilder,
+    IConverterSettingsStore<MicroStationConversionSettings> converterSettings,
+    IReferencePointConverter referencePointConverter,
+    ILogger<MicroStationHostObjectBuilder> logger
   )
   {
     _converter = converter;
@@ -51,6 +60,9 @@ public class MicroStationHostObjectBuilder : IHostObjectBuilder
     _itemTypeBaker = itemTypeBaker;
     _colorBaker = colorBaker;
     _civilRebuilder = civilRebuilder;
+    _converterSettings = converterSettings;
+    _referencePointConverter = referencePointConverter;
+    _logger = logger;
   }
 
   public Task<HostObjectBuilderResult> Build(
@@ -62,6 +74,10 @@ public class MicroStationHostObjectBuilder : IHostObjectBuilder
   )
   {
     onOperationProgressed.Report(new("Converting", null));
+
+    // restore the reference origin recorded on send (see IReferencePointConverter) before any geometry is
+    // converted, so every point/mesh vertex comes back at its true absolute location instead of near zero.
+    RestoreReferencePointOrigin(rootObject);
 
     string baseLayerName = $"SPK-{projectName}-{modelName}";
 
@@ -220,6 +236,41 @@ public class MicroStationHostObjectBuilder : IHostObjectBuilder
     }
 
     baked.Add(element);
+  }
+
+  /// <summary>
+  /// Reads back the <c>referencePointOrigin</c>/<c>referencePointOriginUnits</c> pair the sending session wrote
+  /// onto the root collection (<c>MicroStationRootObjectBuilder</c>) and seeds this receive scope's
+  /// <see cref="IReferencePointConverter"/> with it, converted into the receiving document's own units. Absent
+  /// or malformed data is treated as "no recentering happened on send" and left as a no-op.
+  /// </summary>
+  private void RestoreReferencePointOrigin(Base rootObject)
+  {
+    try
+    {
+      if (
+        rootObject["referencePointOrigin"] is not System.Collections.IEnumerable originValues
+        || rootObject["referencePointOriginUnits"] is not string originUnits
+      )
+      {
+        return;
+      }
+
+      var coordinates = originValues.Cast<object>().Select(v => System.Convert.ToDouble(v)).ToList();
+      if (coordinates.Count != 3)
+      {
+        return;
+      }
+
+      double factor = Units.GetConversionFactor(originUnits, _converterSettings.Current.SpeckleUnits);
+      _referencePointConverter.SetOrigin(
+        new BG.DPoint3d(coordinates[0] * factor, coordinates[1] * factor, coordinates[2] * factor)
+      );
+    }
+    catch (Exception ex) when (!ex.IsFatal())
+    {
+      _logger.LogWarning(ex, "Failed to restore reference point origin from the received root object.");
+    }
   }
 
   /// <summary>
