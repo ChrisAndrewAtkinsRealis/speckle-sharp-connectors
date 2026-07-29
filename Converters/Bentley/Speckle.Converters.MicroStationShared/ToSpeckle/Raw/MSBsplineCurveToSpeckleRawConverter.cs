@@ -9,7 +9,8 @@ namespace Speckle.Converters.MicroStation.ToSpeckle.Raw;
 /// </summary>
 public class MSBsplineCurveToSpeckleRawConverter(
   ITypedConverter<BG.DPoint3d, SOG.Point> pointConverter,
-  IConverterSettingsStore<MicroStationConversionSettings> settingsStore
+  IConverterSettingsStore<MicroStationConversionSettings> settingsStore,
+  IReferencePointConverter referencePointConverter
 ) : ITypedConverter<BG.MSBsplineCurve, SOG.Curve>
 {
   private const int DISPLAY_VALUE_SEGMENT_COUNT = 100;
@@ -36,9 +37,12 @@ public class MSBsplineCurveToSpeckleRawConverter(
     for (int i = 0; i <= DISPLAY_VALUE_SEGMENT_COUNT; i++)
     {
       target.FractionToPoint(out BG.DPoint3d point, (double)i / DISPLAY_VALUE_SEGMENT_COUNT);
-      displayPoints.Add(point.X / uor);
-      displayPoints.Add(point.Y / uor);
-      displayPoints.Add(point.Z / uor);
+      var extPoint = referencePointConverter.ConvertToExternalCoordinates(
+        new BG.DPoint3d(point.X / uor, point.Y / uor, point.Z / uor)
+      );
+      displayPoints.Add(extPoint.X);
+      displayPoints.Add(extPoint.Y);
+      displayPoints.Add(extPoint.Z);
     }
 
     var displayValue = new SOG.Polyline

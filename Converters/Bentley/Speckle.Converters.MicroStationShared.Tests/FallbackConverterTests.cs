@@ -26,7 +26,8 @@ public class FallbackConverterTests
       new FakeMeshConverter(),
       new FakeCurveVectorConverter(),
       new FakeSettingsStore(),
-      new FakeLogger<ElementToSpeckleFallbackConverter>()
+      new FakeLogger<ElementToSpeckleFallbackConverter>(),
+      new FakeReferencePointConverter()
     );
 
     var dataObject = converter.Convert(new FakeElement());
@@ -43,7 +44,8 @@ public class FallbackConverterTests
       new FakeMeshConverter(),
       new FakeCurveVectorConverter(),
       new FakeSettingsStore(),
-      new FakeLogger<ElementToSpeckleFallbackConverter>()
+      new FakeLogger<ElementToSpeckleFallbackConverter>(),
+      new FakeReferencePointConverter()
     );
 
     var result = converter.Convert(new FakeElementWithRange());
@@ -104,6 +106,19 @@ public class FallbackConverterTests
   private sealed class NoopDisposable : IDisposable
   {
     public void Dispose() { }
+  }
+
+  // passthrough: these tests assert absolute box-corner values, so they don't exercise recentering behavior
+  // (covered separately by the raw geometry converters that use the real ReferencePointConverter).
+  private sealed class FakeReferencePointConverter : IReferencePointConverter
+  {
+    public BG.DPoint3d? Origin => null;
+
+    public void SetOrigin(BG.DPoint3d origin) { }
+
+    public BG.DPoint3d ConvertToExternalCoordinates(BG.DPoint3d point) => point;
+
+    public BG.DPoint3d ConvertFromExternalCoordinates(BG.DPoint3d point) => point;
   }
 
   private sealed class FakeLogger<T> : ILogger<T>
