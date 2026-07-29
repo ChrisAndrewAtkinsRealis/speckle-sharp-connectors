@@ -1,5 +1,5 @@
+using Bentley.DgnPlatformNET;
 using Bentley.DgnPlatformNET.DgnEC;
-using Bentley.DgnPlatformNET.Elements;
 using Speckle.Sdk;
 
 namespace Speckle.Converters.MicroStation.ToSpeckle.Properties;

@@ -1,8 +1,7 @@
 using System.Globalization;
+using Bentley.DgnPlatformNET;
 using Bentley.DgnPlatformNET.DgnEC;
-using Bentley.DgnPlatformNET.Elements;
 using Microsoft.Extensions.Logging;
-using Speckle.Objects.Data;
 using Speckle.Sdk;
 using Speckle.Sdk.Models;
 
@@ -32,7 +31,7 @@ public class MicroStationItemTypeBaker
 
   public void ApplyItemTypes(BDE.Element element, Base source)
   {
-    if (element is null || source is not DataObject dataObject)
+    if (element is null || source is not Objects.Data.DataObject dataObject)
     {
       return;
     }
@@ -93,7 +92,7 @@ public class MicroStationItemTypeBaker
         string stringValue = prop.Value is IFormattable formattable
           ? formattable.ToString(null, CultureInfo.InvariantCulture)
           : prop.Value.ToString() ?? "";
-        instance.SetString(prop.Key, stringValue);
+        instance.SetAsString(prop.Key, stringValue);
       }
       catch (Exception ex) when (!ex.IsFatal())
       {
