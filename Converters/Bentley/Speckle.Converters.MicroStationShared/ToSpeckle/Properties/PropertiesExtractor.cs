@@ -1,6 +1,4 @@
 using Bentley.DgnPlatformNET.DgnEC;
-using Bentley.ECObjects.Instance;
-using Bentley.ECObjects.Schema;
 using Speckle.Sdk;
 
 namespace Speckle.Converters.MicroStation.ToSpeckle.Properties;
@@ -25,7 +23,7 @@ public class PropertiesExtractor
 
       foreach (IDgnECInstance instance in instances)
       {
-        var group = ExtractInstance(instance);
+        var group = EcPropertyValueReader.ReadValues(instance);
         if (group.Count == 0)
         {
           continue;
@@ -44,54 +42,5 @@ public class PropertiesExtractor
     }
 
     return properties;
-  }
-
-  private static Dictionary<string, object?> ExtractInstance(IDgnECInstance instance)
-  {
-    var group = new Dictionary<string, object?>();
-
-    foreach (IECProperty property in instance.ClassDefinition)
-    {
-      try
-      {
-        IECPropertyValue? value = instance.GetPropertyValue(property.Name);
-        if (value is null || value.IsNull)
-        {
-          continue;
-        }
-
-        object? extracted = ExtractValue(value);
-        if (extracted is not null)
-        {
-          group[property.Name] = extracted;
-        }
-      }
-      catch (Exception ex) when (!ex.IsFatal())
-      {
-        // skip unreadable property
-      }
-    }
-
-    return group;
-  }
-
-  private static object? ExtractValue(IECPropertyValue value)
-  {
-    if (value.TryGetDoubleValue(out double doubleValue))
-    {
-      return doubleValue;
-    }
-
-    if (value.TryGetIntValue(out int intValue))
-    {
-      return intValue;
-    }
-
-    if (value.TryGetStringValue(out string stringValue))
-    {
-      return stringValue;
-    }
-
-    return value.StringValue;
   }
 }

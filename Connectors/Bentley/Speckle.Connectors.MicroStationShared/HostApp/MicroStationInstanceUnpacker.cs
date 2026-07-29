@@ -78,6 +78,20 @@ public class MicroStationInstanceUnpacker : IInstanceUnpacker<MicroStationRootOb
       string definitionName = instance.CellName ?? instanceId;
       string definitionId = "shared-" + definitionName;
 
+      // Resolve the true definition first: every placement shares one InstanceDefinitionProxy and gets its
+      // own transform applied on top, so falling back to this placement's own (already-placed) children would
+      // double-transform every sibling placement of the same cell once there's more than one to collide.
+      var definitionElement = FindSharedCellDefinition(instance, definitionName);
+      if (definitionElement is null)
+      {
+        _logger.LogWarning(
+          "Could not locate shared cell definition {DefinitionName}; sending placement {InstanceId} as non-instanced geometry",
+          definitionName,
+          instanceId
+        );
+        return;
+      }
+
       AddInstanceProxy(
         instanceId,
         definitionId,
@@ -93,9 +107,7 @@ public class MicroStationInstanceUnpacker : IInstanceUnpacker<MicroStationRootOb
         return;
       }
 
-      var definitionElement = FindSharedCellDefinition(instance, definitionName);
-      var children = definitionElement is null ? EnumerateChildren(instance) : EnumerateChildren(definitionElement);
-      UnpackDefinition(definitionId, definitionName, depth, children);
+      UnpackDefinition(definitionId, definitionName, depth, EnumerateChildren(definitionElement));
     }
     catch (Exception ex) when (!ex.IsFatal())
     {
@@ -249,7 +261,7 @@ public class MicroStationInstanceUnpacker : IInstanceUnpacker<MicroStationRootOb
     }
     catch (Exception ex) when (!ex.IsFatal())
     {
-      _logger.LogDebug(ex, "Could not locate shared cell definition {Name}, falling back to placement geometry", name);
+      _logger.LogDebug(ex, "Failed searching for shared cell definition {Name}", name);
       return null;
     }
   }

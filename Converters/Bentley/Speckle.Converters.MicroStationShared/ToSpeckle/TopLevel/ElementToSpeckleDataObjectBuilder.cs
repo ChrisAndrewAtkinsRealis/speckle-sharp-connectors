@@ -45,6 +45,8 @@ public class ElementToSpeckleDataObjectBuilder(
     return TryExtractGraphicObject(dataObject, out Base? graphicObject) ? graphicObject! : dataObject;
   }
 
+  public bool IsParametricSolid(BDE.SolidElement target) => IsParametricSolidType(target.ElementType.ToString());
+
   public Base ConvertToSolidX(BDE.SolidElement target, bool includeParametricValues)
   {
     DataObject dataObject = Convert(target, includeParametricValues ? "parametric-solid" : "solid", includeParametricValues);

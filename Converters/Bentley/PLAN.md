@@ -13,6 +13,152 @@ Also added 2026-07-25: `ExtendedElementsElement`-classed objects currently
 have no conversion path that reliably succeeds — see the "Current state" and
 plan §7 below.
 
+## Progress Tracker
+
+**Last updated**: 2026-07-28 (third pass, this session), fixing the §7
+child-recovery gate that was causing received `ExtendedElementsElement`/
+type-2 elements to come back as a bounding-box mesh instead of their real
+shape — see the new row below, diagnosed directly from the `report.json`/
+`ELEMENT_COVERAGE.csv` evidence gathered in the prior pass.
+
+Prior update (second pass, this session) replaced the reflection-based §6
+Item Type read/write with the real `CustomItemHost` API. Most of §1-§2, §6
+and §7 landed in commit `6757fbc` ("20260728", Chris Andrew, 2026-07-28)
+without this file being updated — the "Current state" section above and the
+plan below are now stale in places; this tracker is the up-to-date source of
+truth. `Connectors/Bentley/report.json` and `ELEMENT_COVERAGE.csv` (added in
+the same commit) are real element-inventory dumps from a live
+Windows/MicroStation run — evidence the §1 spike did happen against a real
+file, even though the encoding *decision* itself (mesh-only, no lossless
+kernel encoding — see §1 row below) isn't written down anywhere in prose.
+
+**Overall: ~70%** [███████░░░]
+
+| # | Item | Status | Notes |
+|---|---|---|---|
+| 1 | Spike: encoding strategy | ✅ Done (decided) | No accessible brep/kernel serialization API is used — `SOG.SolidX.encodedValue` is always written with `format = "microstation"` and `contents = string.Empty` (`ElementToSpeckleDataObjectBuilder.ConvertToSolidX`). Decision taken implicitly: mesh-only tessellated `displayValue`, per the plan's own documented fallback risk. Not written down in this file until now. |
+| 1b | Cell-dispatch trace | ✅ Done (confirmed) | Cell-definition children are added as plain atomic objects (`MicroStationInstanceUnpacker.UnpackDefinition` → `AddAtomicObject`) and flow through the same `ConvertOrProxy`/converter-registry path as top-level elements (`MicroStationRootObjectBuilder.Build`). They already benefit from the typed Solid/Surface converters below with no extra wiring needed. |
+| 2 | Typed ToSpeckle converters (Solid) | ✅ Done | `SolidElementToSpeckleConverter` → `SolidElementToSpeckleRawConverter` → `ElementToSpeckleDataObjectBuilder.ConvertToSolidX`, produces a real `SOG.SolidX` (tessellated mesh `displayValue`, empty raw encoding, primitive parameter values in `properties`). **Was not actually compiled** until this pass — see "Fixed" below. |
+| 2 | Typed ToSpeckle converters (Surface) | ✅ Done | `SurfaceElementToSpeckleConverter` → `SurfaceElementToSpeckleRawConverter` → `ElementToSpeckleDataObjectBuilder.ConvertToSurfaceOrGraphicOrDataObject`, produces a real `SOG.Surface` (NURBS control points/knots) when the graphics processor announces an `MSBsplineSurface`, else falls back to a graphic/DataObject. This is actually *better* than the plan's minimum bar (a real parametric surface, not mesh-only). |
+| 2 | Typed ToSpeckle converter (Parametric Solid) | ✅ Done (folded in, this pass) | Plan called for a *separate* `ParametricSolidElementToSpeckleConverter`, but the converter-registration framework only allows one top-level converter per exact .NET type (`ConverterManager.ResolveConverter`/`AddConverters` — confirmed by reading `Sdk/Speckle.Converters.Common/Registration/*.cs`), so a second converter on `BDE.SolidElement` can't coexist with `SolidElementToSpeckleConverter`. Folded the decision into the single reachable converter instead: added `ElementToSpeckleDataObjectBuilder.IsParametricSolid(...)` and had `SolidElementToSpeckleRawConverter` call it to decide `includeParametricValues`. Deleted the dead, never-referenced `ParametricSolidElementToSpeckleRawConverter.cs`, which also implemented `ITypedConverter<BDE.SolidElement, Base>` and would have created an ambiguous duplicate DI registration for that interface. |
+| 3 | ToHost mirror: narrow fallback converter | ✅ Done | `SolidLikeDataObjectToHostConverter.IsSolidLikeFallback` now gates on `conversionKind == "fallback"`, so it no longer intercepts the new typed Solid/Surface output. |
+| 3 | ToHost mirror: typed `SOG.SolidX → BDE` converter | ✅ Done, this pass | **Was completely missing** — receiving a MicroStation-sent Solid back into MicroStation would have thrown `ConversionNotSupportedException` (no converter registered for `SOG.SolidX`, which does not inherit `DisplayableObject`; confirmed against the equivalent AutoCAD `SolidXToHostConverter`, the only other place in this repo that handles `SolidX`). Added `ToHost/Geometry/SolidXToHostConverter.cs`: rebuilds from the tessellated `displayValue` meshes (there is no lossless raw encoding to decode per §1), mirroring the AutoCAD converter's fallback branch. |
+| 3 | ToHost mirror: typed `SOG.Surface → BDE.SurfaceElement` converter | ❌ Not started | No connector in this repo has a `SOG.Surface` ToHost converter yet (checked: zero matches for `typeof(SOG.Surface)` repo-wide), so there's no established pattern to follow and native B-spline surface reconstruction is real, unverified Bentley SDK territory. Left alone rather than guessed at — needs the Windows spike. Received Surfaces currently have no receive path at all (no fallback either, since real `SOG.Surface` isn't a `DisplayableObject`). |
+| 4 | Cell integration | ✅ Done (see 1b) | |
+| 5 | Tests | 🟡 Started, partial | `Speckle.Converters.MicroStationShared.Tests` project exists (NUnit, `net48`) with one test (`FallbackConverterTests`, covers §7's empty-`displayValue` fix only). It references `Speckle.Converters.MicroStation2026.csproj` directly, so like the rest of this connector it's Windows-SDK-only and can't be built/run from this Linux environment. No coverage yet for the Solid/Surface/Parametric converters, the new `SolidXToHostConverter`, or the narrowed fallback host converter. |
+| 6 | Item Type properties: export | 🟡 Rewritten to real API, build-unverified | `ItemTypePropertiesExtractor` no longer reflects for guessed property names. It now constructs `new CustomItemHost(element, false)` and reads `CustomItemHost.CustomItems` (an `IList<IDgnECInstance>`, per the Bentley "Item Types CRUD Operations" managed-API sample) — this differentiates Item Type instances from the generic EC data `PropertiesExtractor` reads, which was the open question from the §6 spike. Each Item Type's values (extracted via the new shared `EcPropertyValueReader`, factored out of `PropertiesExtractor`'s previously-duplicated logic) are written to `properties["Item Types"][<Item Type name>] = { "library": <owning schema/library name>, "properties": {...} }` — the library name is carried alongside the values because the baker needs it to resolve the same Item Type on receive. Still unverified: exact `CustomItemHost` namespace/constructor semantics and whether `ClassDefinition.Schema.Name` is really the library name — no Windows/MicroStation SDK available in this environment to compile-check. |
+| 6 | Item Type properties: import | 🟡 Rewritten to real API, build-unverified | `MicroStationItemTypeBaker.ApplyItemTypes` no longer reflects for a settable `"ItemType"` element property. It now reads `DataObject.properties["Item Types"]`, resolves each Item Type via `CustomItemHost.GetCustomItem(library, itemTypeName)`, and writes values with `IDgnECInstance.SetString` + `WriteChanges()` (per the same Bentley CRUD sample: `ecInstance.SetString("Type", "Modified Sofa")`). **Decision** (per the Risk section below): an incoming Item Type with no match in the target file is skipped and logged, not auto-created — creating `ItemTypeLibrary`/`ItemType` definitions generically was judged too risky to guess without SDK verification, so this is the documented "import-only-if-already-defined" fallback the plan called for. The parsing of the `{"library", "properties"}` entry shape was pulled into a pure `MicroStationItemTypeBaker.TryParseItemTypeEntry` so it's unit-testable without the Bentley SDK (see tests below); the `CustomItemHost`/`IDgnECInstance` calls themselves are still unverified against a real file. |
+| 6 | Item Type round-trip tests | 🟡 Partial | Added `Speckle.Connectors.MicroStationShared.Tests` (new test project, mirrors the existing Converters test project: NUnit4, net48, references `Speckle.Connectors.MicroStation2026.csproj`) with unit tests for `MicroStationItemTypeBaker.TryParseItemTypeEntry` (well-formed entry, missing/blank library, missing properties, non-dictionary entry). This covers the wire-contract between extractor and baker but not the `CustomItemHost` calls themselves — those need Moq mocks of Bentley EC interfaces (`IDgnECInstance`/`IECClass`/`IECPropertyValue`) whose exact member shapes aren't confirmed, or a live round-trip against a real DGN file. Still blocked on Windows verification for full coverage. |
+| 7 | ExtendedElementsElement: don't throw on empty displayValue | ✅ Done | `ElementToSpeckleFallbackConverter.Convert` returns a properties-only `DataObject` when no display geometry is found instead of throwing `ConversionException`. Also gained an additional bounding-box-mesh fallback (`TryAddRangeFallbackMesh`) beyond what the plan asked for. |
+| 7 | ExtendedElementsElement: fix child-recovery gate producing box-only geometry | ✅ Done, this pass | Live evidence in `report.json`/`ELEMENT_COVERAGE.csv` showed `ChildCount_GetChildren == -1` for every sampled element while `ChildCount_ChildElemIter` had real children (3-97) for the file's non-`ExtendedElementElement` type-2 elements — but `EnumerateChildren` only fell back to the `ChildElemIter` recovery path when `target is BDE.ExtendedElementElement`, so those elements' real children (and their geometry) were never reached and every one fell through to `TryAddRangeFallbackMesh` (an axis-aligned bounding box) instead of real shape. `EnumerateChildren` (`ElementToSpeckleFallbackConverter.cs`) now falls back to `ChildElemIter` whenever `GetChildren()` returned nothing, not only for `ExtendedElementElement`. Added `FallbackConverter_ReturnsBoundingBoxMesh_WhenOnlyElementRangeIsAvailable` to cover the box-fallback path itself, which previously had no test coverage. Still can't be compiled/run from this Linux environment (Bentley SDK is Windows-only) — needs a Windows verification pass against the real file. |
+| 7 | ExtendedElementsElement: confirm concrete SDK type | ❌ Not started (blocked) | Still needs a Windows box with MicroStation 2026 to confirm the concrete managed type(s) — can't be done from this Linux environment. `DotNetTypeName` in `report.json` is empty for every sampled element, so it's still unconfirmed whether the file's type-2/type-106 elements are actually `ExtendedElementElement` — the child-recovery fix above sidesteps that by keying off `GetChildren()` behavior instead of the type check, but the type itself is still unverified. |
+| 7 | ExtendedElementsElement: ToHost round-trip decision | ❌ Not started | Not yet explicitly decided/documented whether extended elements round-trip back into the host file on receive. |
+
+### Fixed in this pass (2026-07-28)
+
+1. **`SolidElementToSpeckleRawConverter.cs` was never added to
+   `Speckle.Converters.MicroStationShared.projitems`** — it existed on disk
+   but wasn't part of the compiled shared-items list, so on a real Windows
+   build the type wouldn't exist in the assembly at all. Added it to the
+   `.projitems` file.
+2. **Ambiguous DI registration**: `ParametricSolidElementToSpeckleRawConverter`
+   was a second, unreferenced implementation of
+   `ITypedConverter<BDE.SolidElement, Base>` (the same interface
+   `SolidElementToSpeckleRawConverter` implements). Multiple registrations for
+   one interface resolve non-deterministically via last-registered-wins when
+   injected as a single constructor parameter. Deleted it and folded its
+   "is this a parametric solid" decision into
+   `ElementToSpeckleDataObjectBuilder.IsParametricSolid` +
+   `SolidElementToSpeckleRawConverter`, so there's exactly one converter for
+   `BDE.SolidElement` and it makes the parametric/non-parametric call itself.
+3. **Missing `SOG.SolidX` receive path**: added
+   `ToHost/Geometry/SolidXToHostConverter.cs` so a MicroStation-authored Solid
+   can round-trip back into MicroStation (degraded to its tessellated display
+   mesh, since there's no lossless encoding to decode — consistent with the
+   §1 decision).
+
+None of this has been build-verified against the real Bentley SDK (Windows
+required, unavailable here) — the `.projitems`/DI fixes are verified by
+reading the registration code paths in `Sdk/Speckle.Converters.Common`
+directly, and the new converter mirrors an existing, working pattern
+(AutoCAD's `SolidXToHostConverter`). Flagging as the next thing to confirm on
+Windows.
+
+### §6 Item Type spike + implementation (this session)
+
+Ran the "spike" from the plan as a documentation search, since no Windows/
+MicroStation box is available in this environment: found Bentley's own
+"Item Types CRUD Operations with Native, COM and Managed APIs" sample and
+several MicroStation Programming Forum threads confirming the real managed
+API shape used to attach/read/write Item Types on an element:
+
+- `CustomItemHost` (constructed as `new CustomItemHost(element, false)`,
+  assumed namespace `Bentley.DgnPlatformNET.Elements` alongside `BDE.Element`
+  — **not independently confirmed**, since no forum sample showed the
+  `using` statements).
+- `CustomItemHost.CustomItems` → `IList<IDgnECInstance>`, every Item Type
+  instance attached to the element. This is the answer to the spike's open
+  question: Item Type instances *are* reachable independently of the
+  generic `DgnECManager.Manager.GetElementProperties(element,
+  SearchAllClasses)` walk `PropertiesExtractor` already does, so they can be
+  read into their own namespaced bag instead of being mixed in.
+- `CustomItemHost.GetCustomItem(libraryName, itemTypeName)` → the specific
+  `IDgnECInstance` for one Item Type, or presumably `null` if not applied to
+  the element — used on receive to find the write target.
+- `IDgnECInstance.SetString(accessString, value)` — the one write method
+  directly confirmed in a real code sample
+  (`ecInstance.SetString("Type", "Modified Sofa")`). Used for every property
+  regardless of its underlying scalar type (numbers formatted
+  culture-invariantly via `IFormattable` first); typed setters
+  (`SetDouble`/`SetInteger`/etc.) may also exist but weren't confirmed, so
+  weren't guessed at.
+- `IDgnECInstance.WriteChanges()` — assumed necessary to persist a
+  `SetString` call back to the element, per the general DgnEC instance
+  pattern; not independently confirmed in a sample.
+
+Implemented with this API:
+`Converters/Bentley/Speckle.Converters.MicroStationShared/ToSpeckle/
+Properties/ItemTypePropertiesExtractor.cs` (export) and
+`Connectors/Bentley/Speckle.Connectors.MicroStationShared/HostApp/
+MicroStationItemTypeBaker.cs` (import). Also factored the scalar
+EC-value-extraction logic shared by `PropertiesExtractor` and
+`ItemTypePropertiesExtractor` into a new
+`ToSpeckle/Properties/EcPropertyValueReader.cs` rather than duplicating it.
+
+**Explicit decision** (resolves the plan's Risk section for §6): on receive,
+an Item Type named in the incoming data that has no matching definition
+already in the target file (i.e. `GetCustomItem` returns nothing) is
+**skipped and logged**, not auto-created. Authoring a new `ItemTypeLibrary`/
+`ItemType` schema definition generically was judged too risky to implement
+without Windows SDK verification — the `ItemTypeLibrary.FindByName` /
+`GetItemTypeByName` / `ApplyCustomItem` APIs exist per the forum research,
+but their exact parameter semantics (the extra `bool` "import library"
+argument seen in samples) weren't confirmed enough to use safely for
+writing new definitions into a user's file.
+
+**Still needed before this is trustworthy**: a Windows/MicroStation 2026 box
+to (1) confirm `CustomItemHost`'s actual namespace and constructor
+semantics, (2) confirm `GetCustomItem` really returns null (vs. throwing)
+for an unmatched Item Type, (3) confirm `SetString` performs correct type
+coercion for non-string Item Type properties (numeric/boolean), and
+(4) run an actual send → receive round-trip against a file with real Item
+Types applied. None of this compiles on Linux (same constraint as the rest
+of this connector), so it's unverified by anything other than reading the
+Bentley sample code found via search — flagging that explicitly rather than
+presenting it as done.
+
+**Note on the new test project**: `Connectors/Bentley/Speckle.Connectors.
+MicroStationShared.Tests/` has no `packages.lock.json` yet (Central Package
+Management + `RestorePackagesWithLockFile` normally require one committed,
+per `CLAUDE.md`) — this environment has no `dotnet` CLI available to
+generate one. It isn't in any `.slnx`, matching its Converters-side sibling,
+so `dotnet restore --locked-mode` on the solution files never touches it;
+the `test`/`test-and-pack` Build targets invoke `dotnet test` per
+`*.Tests.csproj` without `--locked-mode`, so a missing lock file gets
+auto-generated on first restore rather than failing the build. Still, run
+`dotnet restore` on it once on Windows and commit the resulting
+`packages.lock.json`, to match repo convention.
+
 ## Decision
 
 Commit `1d3adfb` ("feat(microstation): robust fallback for unsupported elements")
